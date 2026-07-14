@@ -73,19 +73,38 @@ INDUSTRIAS = sorted(df_bi['Nome_Fabricante'].dropna().unique())
 INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 
 # ============================================================
-# FILTROS
+# FILTROS ENCADEADOS
 # ============================================================
 st.sidebar.header("🎯 Filtros")
 
-lista_vendedores = ["Todos"] + sorted(df_bi['nome_vendedor'].dropna().unique().tolist())
-vendedor_selecionado = st.sidebar.selectbox("Vendedor", lista_vendedores)
-
+# --- COORDENADOR (filtro principal) ---
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
 coordenador_selecionado = st.sidebar.selectbox("Coordenador", lista_coordenadores)
 
-lista_coligacoes = ["Todas"] + sorted(df_merged['Cliente_Coligacao'].dropna().unique().tolist())
+# --- VENDEDOR (depende do coordenador) ---
+if coordenador_selecionado != "Todos":
+    vendedores_filtrados = df_bi[df_bi['Nome_Coordenador'] == coordenador_selecionado]['nome_vendedor'].dropna().unique()
+else:
+    vendedores_filtrados = df_bi['nome_vendedor'].dropna().unique()
+
+lista_vendedores = ["Todos"] + sorted(vendedores_filtrados.tolist())
+vendedor_selecionado = st.sidebar.selectbox("Vendedor", lista_vendedores)
+
+# --- COLIGAÇÃO (depende do vendedor e coordenador) ---
+if vendedor_selecionado != "Todos":
+    clientes_do_vendedor = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].unique()
+    coligacoes_filtradas = df_base[df_base['codigo_cliente'].isin(clientes_do_vendedor)]['Cliente_Coligacao'].dropna().unique()
+elif coordenador_selecionado != "Todos":
+    vendedores_do_coord = df_bi[df_bi['Nome_Coordenador'] == coordenador_selecionado]['nome_vendedor'].unique()
+    clientes_do_coord = df_base[df_base['nome_vendedor'].isin(vendedores_do_coord)]['codigo_cliente'].unique()
+    coligacoes_filtradas = df_base[df_base['codigo_cliente'].isin(clientes_do_coord)]['Cliente_Coligacao'].dropna().unique()
+else:
+    coligacoes_filtradas = df_base['Cliente_Coligacao'].dropna().unique()
+
+lista_coligacoes = ["Todas"] + sorted(coligacoes_filtradas.tolist())
 coligacao_selecionada = st.sidebar.selectbox("Coligação", lista_coligacoes)
 
+# --- ANO (independente) ---
 anos_disponiveis = sorted(df_merged['Ano'].dropna().unique())
 ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + [int(a) for a in anos_disponiveis])
 
