@@ -109,20 +109,34 @@ if ano_selecionado != "Todos":
 # ============================================================
 # MÉTRICAS
 # ============================================================
-total_clientes_base = df_filtrado['codigo_cliente'].nunique()
-total_clientes_positivados = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
+# Total de clientes na BASE (carteira) com filtros
+if vendedor_selecionado != "Todos":
+    total_clientes_base = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].nunique()
+elif coordenador_selecionado != "Todos":
+    # Buscar vendedores do coordenador na BI e filtrar base
+    vendedores_do_coord = df_bi[df_bi['Nome_Coordenador'] == coordenador_selecionado]['nome_vendedor'].unique()
+    total_clientes_base = df_base[df_base['nome_vendedor'].isin(vendedores_do_coord)]['codigo_cliente'].nunique()
+elif coligacao_selecionada != "Todas":
+    total_clientes_base = df_base[df_base['Cliente_Coligacao'] == coligacao_selecionada]['codigo_cliente'].nunique()
+else:
+    total_clientes_base = df_base['codigo_cliente'].nunique()
+
+# Clientes positivados (compraram pelo menos 1 indústria)
+clientes_positivados_ids = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].unique()
+total_clientes_positivados = len(clientes_positivados_ids)
+
 pct_positivacao = (total_clientes_positivados / total_clientes_base * 100) if total_clientes_base > 0 else 0
 
+# Cobertura média
 cobertura_por_cliente = df_filtrado.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
 cobertura_media = cobertura_por_cliente.mean() if len(cobertura_por_cliente) > 0 else 0
 
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("📋 Clientes na Base", total_clientes_base)
+col1.metric("📋 Clientes na Carteira", total_clientes_base)
 col2.metric("✅ Clientes Positivados", total_clientes_positivados)
 col3.metric("📈 % Positivação", f"{pct_positivacao:.1f}%")
 col4.metric("📊 Cobertura Média", f"{cobertura_media:.1f} indústrias")
 col5.metric("🏭 Indústrias", len(INDUSTRIAS))
-
 st.divider()
 
 # ============================================================
