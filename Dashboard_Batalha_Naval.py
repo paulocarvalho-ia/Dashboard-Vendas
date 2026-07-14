@@ -287,46 +287,69 @@ st.divider()
 # ============================================================
 st.subheader("🔍 Ficha do Cliente")
 
-df_clientes_unicos = df_filtrado[['codigo_cliente', 'nome_cliente']].drop_duplicates()
-df_clientes_unicos['cliente_label'] = df_clientes_unicos['codigo_cliente'].astype(str) + ' - ' + df_clientes_unicos['nome_cliente'].astype(str)
-lista_clientes = sorted(df_clientes_unicos['cliente_label'].tolist())
+# Criar lista segura de clientes
+try:
+    df_clientes_unicos = df_filtrado[['codigo_cliente', 'nome_cliente']].drop_duplicates()
+    df_clientes_unicos = df_clientes_unicos.dropna(subset=['codigo_cliente', 'nome_cliente'])
+    
+    # Garantir que as colunas são string
+    df_clientes_unicos['codigo_str'] = df_clientes_unicos['codigo_cliente'].astype(str).str.strip()
+    df_clientes_unicos['nome_str'] = df_clientes_unicos['nome_cliente'].astype(str).str.strip()
+    df_clientes_unicos['cliente_label'] = df_clientes_unicos['codigo_str'] + ' - ' + df_clientes_unicos['nome_str']
+    
+    lista_clientes = sorted(df_clientes_unicos['cliente_label'].unique().tolist())
+except Exception as e:
+    lista_clientes = []
+    st.warning("Erro ao carregar lista de clientes.")
 
 if len(lista_clientes) > 0:
-    cliente_selecionado_label = st.selectbox("Selecione um cliente:", lista_clientes, key='ficha_cliente')
+    cliente_selecionado_label = st.selectbox(
+        "Selecione um cliente:",
+        lista_clientes,
+        key='ficha_cliente'
+    )
 
     if cliente_selecionado_label:
-        codigo_selecionado = cliente_selecionado_label.split(' - ')[0]
-        df_cliente = df_filtrado[df_filtrado['codigo_cliente'].astype(str) == str(codigo_selecionado)]
-
-        if not df_cliente.empty:
-            nome = df_cliente['nome_cliente'].iloc[0]
-            coligacao = df_cliente['Cliente_Coligacao'].iloc[0]
-            vendedor = df_cliente['nome_vendedor'].iloc[0]
-            coordenador = df_cliente['Nome_Coordenador'].iloc[0]
-
-            st.write(f"**Código:** {codigo_selecionado}")
-            st.write(f"**Nome:** {nome}")
-            st.write(f"**Coligação:** {coligacao}")
-            st.write(f"**Vendedor:** {vendedor}")
-            st.write(f"**Coordenador:** {coordenador}")
-
-            industrias_cliente = df_cliente['Nome_Fabricante'].dropna().unique()
+        try:
+            # Extrair código do label
+            codigo_selecionado = cliente_selecionado_label.split(' - ')[0].strip()
             
-            st.write("**Status por Indústria:**")
-            cols = st.columns(5)
-            for i, industria in enumerate(INDUSTRIAS):
-                col_idx = i % 5
-                if industria in industrias_cliente:
-                    cols[col_idx].success(f"✅ {industria}")
-                else:
-                    cols[col_idx].error(f"❌ {industria}")
-            
-            total_positivado = len(industrias_cliente)
-            st.metric("Total Positivado", f"{total_positivado} de {len(INDUSTRIAS)}")
+            # Filtrar dados do cliente
+            df_filtrado['codigo_str'] = df_filtrado['codigo_cliente'].astype(str).str.strip()
+            df_cliente = df_filtrado[df_filtrado['codigo_str'] == codigo_selecionado]
+
+            if not df_cliente.empty:
+                nome = str(df_cliente['nome_cliente'].iloc[0])
+                coligacao = str(df_cliente['Cliente_Coligacao'].iloc[0])
+                vendedor = str(df_cliente['nome_vendedor'].iloc[0])
+                coordenador = str(df_cliente['Nome_Coordenador'].iloc[0])
+
+                st.write(f"**Código:** {codigo_selecionado}")
+                st.write(f"**Nome:** {nome}")
+                st.write(f"**Coligação:** {coligacao}")
+                st.write(f"**Vendedor:** {vendedor}")
+                st.write(f"**Coordenador:** {coordenador}")
+
+                # Status por indústria
+                industrias_cliente = df_cliente['Nome_Fabricante'].dropna().unique()
+                
+                st.write("**Status por Indústria:**")
+                cols = st.columns(5)
+                for i, industria in enumerate(INDUSTRIAS):
+                    col_idx = i % 5
+                    if industria in industrias_cliente:
+                        cols[col_idx].success(f"✅ {industria}")
+                    else:
+                        cols[col_idx].error(f"❌ {industria}")
+                
+                total_positivado = len(industrias_cliente)
+                st.metric("Total Positivado", f"{total_positivado} de {len(INDUSTRIAS)}")
+            else:
+                st.warning(f"Cliente {codigo_selecionado} não encontrado nos dados filtrados.")
+        except Exception as e:
+            st.warning("Erro ao carregar dados do cliente. Tente outro.")
 else:
     st.warning("Nenhum cliente encontrado com os filtros atuais.")
 
-st.divider()
-st.caption(f"Última atualização: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Fonte: Google Sheets")
 st.divider()
 st.caption(f"Última atualização: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')} | Fonte: Google Sheets")
