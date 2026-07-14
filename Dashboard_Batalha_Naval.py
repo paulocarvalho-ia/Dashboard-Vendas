@@ -22,7 +22,7 @@ st.caption("Distribuidora — Análise por Indústria Representada")
 # ============================================================
 SHEET_ID = "1L0g4hyAM_GtEO2-7kfKpbpl_vXq_bh6t"
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300)
 def load_data():
     url_base = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet="
 
