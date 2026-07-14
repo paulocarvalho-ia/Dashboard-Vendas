@@ -269,10 +269,12 @@ if len(lista_clientes) > 0:
         try:
             codigo_selecionado = cliente_selecionado_label.split(' - ')[0].strip()
             
-            df_filtrado['codigo_str'] = df_filtrado['codigo_cliente'].astype(str).str.strip()
-            df_cliente = df_filtrado[df_filtrado['codigo_str'] == codigo_selecionado]
+            # Filtrar dados do cliente
+            df_filtrado_temp = df_filtrado.copy()
+            df_filtrado_temp['codigo_str'] = df_filtrado_temp['codigo_cliente'].astype(str).str.strip()
+            df_cliente = df_filtrado_temp[df_filtrado_temp['codigo_str'] == codigo_selecionado]
 
-            if not df_cliente.empty:
+            if not df_cliente.empty and len(df_cliente) > 0:
                 nome = str(df_cliente['nome_cliente'].iloc[0])
                 coligacao = str(df_cliente['Cliente_Coligacao'].iloc[0])
                 vendedor = str(df_cliente['nome_vendedor'].iloc[0])
@@ -281,46 +283,36 @@ if len(lista_clientes) > 0:
                 st.write(f"**Código:** {codigo_selecionado} | **Nome:** {nome}")
                 st.write(f"**Coligação:** {coligacao} | **Vendedor:** {vendedor} | **Coordenador:** {coordenador}")
 
-                # Matriz mensal: Indústrias × Meses
+                # Matriz simples: Indústrias × Meses
                 st.write("**Positivação por Indústria e Mês:**")
                 
-                meses_ordenados = sorted(df_cliente['Mês_Ano'].dropna().unique())
+                # Pegar meses disponíveis para este cliente
+                meses_disponiveis = sorted(df_cliente['Mês_Ano'].dropna().unique())
                 
-                matriz_mensal = df_cliente.pivot_table(
-                    index='Nome_Fabricante',
-                    columns='Mês_Ano',
-                    aggfunc='size',
-                    fill_value=0
-                )
-                matriz_mensal = (matriz_mensal > 0).astype(int)
-                
-                # Reordenar colunas
-                matriz_mensal = matriz_mensal.reindex(columns=meses_ordenados, fill_value=0)
-                
-                # Adicionar total
-                matriz_mensal['Total'] = matriz_mensal.sum(axis=1)
-                
-                # Destacar visualmente
-                def highlight(val):
-                    if isinstance(val, (int, float)):
-                        if val > 0:
-                            return 'background-color: #0F5220; color: white'
-                        else:
-                            return 'background-color: #8B0000; color: white'
-                    return ''
-                
-                st.dataframe(
-                    matriz_mensal.style.applymap(highlight),
-                    use_container_width=True
-                )
-                
-                total_industrias = len(matriz_mensal)
-                st.caption(f"🟢 Verde = Positivado no mês | 🔴 Vermelho = Não positivado | Total de indústrias: {total_industrias}")
-                
+                if len(meses_disponiveis) > 0:
+                    # Criar tabela manualmente
+                    tabela_dados = []
+                    for industria in INDUSTRIAS:
+                        linha = {'Indústria': industria}
+                        for mes in meses_disponiveis:
+                            # Verificar se houve venda desta indústria neste mês
+                            tem_venda = len(df_cliente[(df_cliente['Nome_Fabricante'] == industria) & (df_cliente['Mês_Ano'] == mes)]) > 0
+                            linha[mes] = '✅' if tem_venda else '❌'
+                        # Total de meses positivados
+                        linha['Total'] = sum(1 for m in meses_disponiveis if linha[m] == '✅')
+                        tabela_dados.append(linha)
+                    
+                    df_tabela = pd.DataFrame(tabela_dados)
+                    st.dataframe(df_tabela, use_container_width=True, hide_index=True)
+                    
+                    total_industrias_positivadas = sum(1 for l in tabela_dados if l['Total'] > 0)
+                    st.metric("Indústrias Positivadas", f"{total_industrias_positivadas} de {len(INDUSTRIAS)}")
+                else:
+                    st.warning("Nenhum dado mensal disponível para este cliente.")
             else:
                 st.warning("Cliente não encontrado nos dados filtrados.")
         except Exception as e:
-            st.warning("Erro ao carregar dados do cliente.")
+            st.warning(f"Erro ao carregar dados do cliente. Detalhe: {str(e)}")
 else:
     st.warning("Nenhum cliente encontrado com os filtros atuais.")
 
