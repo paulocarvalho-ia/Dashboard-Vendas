@@ -28,52 +28,31 @@ def load_data():
     df_base = pd.read_csv(url_base + "BASE")
     df_bi = pd.read_csv(url_base + "BI")
 
+    # Padronizar nomes das colunas
+    df_base = df_base.rename(columns={
+        'cd_clien': 'codigo_cliente',
+        'nome_cliente': 'nome_cliente',
+        'nome_vendedor': 'nome_vendedor',
+        'Cliente_Coligacao': 'Cliente_Coligacao'
+    })
+
+    df_bi = df_bi.rename(columns={
+        'Código Cliente': 'codigo_cliente',
+        'Cliente': 'nome_cliente',
+        'Nome_Vendedor_Ajustado': 'nome_vendedor',
+        'Nome Coordenador': 'Nome_Coordenador',
+        'Nome Fabricante': 'Nome_Fabricante'
+    })
+
     # Converter coluna "Ano e Mês" (formato aaaa-mm) para datetime
     df_bi['Data'] = pd.to_datetime(df_bi['Ano e Mês'] + '-01', errors='coerce')
     df_bi['Mês'] = df_bi['Data'].dt.month
     df_bi['Ano'] = df_bi['Data'].dt.year
     df_bi['Mês_Ano'] = df_bi['Data'].dt.to_period('M').astype(str)
 
-    # Renomear colunas para padronizar (se necessário)
-    # BASE
-    base_rename = {}
-    for col in df_base.columns:
-        col_lower = col.lower().replace(' ', '_')
-        if 'codigo' in col_lower and 'cliente' in col_lower:
-            base_rename[col] = 'codigo_cliente'
-        if 'nome' in col_lower and 'cliente' in col_lower:
-            base_rename[col] = 'nome_cliente'
-        if 'vendedor' in col_lower:
-            base_rename[col] = 'nome_vendedor'
-        if 'coligacao' in col_lower:
-            base_rename[col] = 'Cliente_Coligacao'
-    
-    df_base.rename(columns=base_rename, inplace=True)
-
-    # BI
-    bi_rename = {}
-    for col in df_bi.columns:
-        col_lower = col.lower().replace(' ', '_')
-        if 'codigo' in col_lower and 'cliente' in col_lower:
-            bi_rename[col] = 'codigo_cliente'
-        if 'nome' in col_lower and 'cliente' in col_lower:
-            bi_rename[col] = 'nome_cliente'
-        if 'vendedor' in col_lower:
-            bi_rename[col] = 'nome_vendedor'
-        if 'coordenador' in col_lower:
-            bi_rename[col] = 'Nome_Coordenador'
-        if 'fabricante' in col_lower:
-            bi_rename[col] = 'Nome_Fabricante'
-    
-    df_bi.rename(columns=bi_rename, inplace=True)
-
     # Merge
-    cols_merge = ['codigo_cliente']
-    if 'Cliente_Coligacao' in df_base.columns:
-        cols_merge.append('Cliente_Coligacao')
-    
     df_merged = df_bi.merge(
-        df_base[cols_merge],
+        df_base[['codigo_cliente', 'Cliente_Coligacao']],
         on='codigo_cliente',
         how='left'
     )
@@ -90,8 +69,7 @@ df_base, df_bi, df_merged = load_data()
 # ============================================================
 # LISTA DE INDÚSTRIAS
 # ============================================================
-col_fabricante = 'Nome_Fabricante'
-INDUSTRIAS = sorted(df_bi[col_fabricante].dropna().unique())
+INDUSTRIAS = sorted(df_bi['Nome_Fabricante'].dropna().unique())
 INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 
 # ============================================================
@@ -102,14 +80,10 @@ st.sidebar.header("🎯 Filtros")
 lista_vendedores = ["Todos"] + sorted(df_bi['nome_vendedor'].dropna().unique().tolist())
 vendedor_selecionado = st.sidebar.selectbox("Vendedor", lista_vendedores)
 
-col_coord = 'Nome_Coordenador'
-lista_coordenadores = ["Todos"] + sorted(df_bi[col_coord].dropna().unique().tolist())
+lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
 coordenador_selecionado = st.sidebar.selectbox("Coordenador", lista_coordenadores)
 
-col_colig = 'Cliente_Coligacao'
-lista_coligacoes = ["Todas"]
-if col_colig in df_merged.columns:
-    lista_coligacoes += sorted(df_merged[col_colig].dropna().unique().tolist())
+lista_coligacoes = ["Todas"] + sorted(df_merged['Cliente_Coligacao'].dropna().unique().tolist())
 coligacao_selecionada = st.sidebar.selectbox("Coligação", lista_coligacoes)
 
 anos_disponiveis = sorted(df_merged['Ano'].dropna().unique())
@@ -124,10 +98,10 @@ if vendedor_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado['nome_vendedor'] == vendedor_selecionado]
 
 if coordenador_selecionado != "Todos":
-    df_filtrado = df_filtrado[df_filtrado[col_coord] == coordenador_selecionado]
+    df_filtrado = df_filtrado[df_filtrado['Nome_Coordenador'] == coordenador_selecionado]
 
-if coligacao_selecionada != "Todas" and col_colig in df_filtrado.columns:
-    df_filtrado = df_filtrado[df_filtrado[col_colig] == coligacao_selecionada]
+if coligacao_selecionada != "Todas":
+    df_filtrado = df_filtrado[df_filtrado['Cliente_Coligacao'] == coligacao_selecionada]
 
 if ano_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado['Ano'] == int(ano_selecionado)]
@@ -136,10 +110,10 @@ if ano_selecionado != "Todos":
 # MÉTRICAS
 # ============================================================
 total_clientes_base = df_filtrado['codigo_cliente'].nunique()
-total_clientes_positivados = df_filtrado[df_filtrado[col_fabricante].notna()]['codigo_cliente'].nunique()
+total_clientes_positivados = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
 pct_positivacao = (total_clientes_positivados / total_clientes_base * 100) if total_clientes_base > 0 else 0
 
-cobertura_por_cliente = df_filtrado.groupby('codigo_cliente')[col_fabricante].nunique()
+cobertura_por_cliente = df_filtrado.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
 cobertura_media = cobertura_por_cliente.mean() if len(cobertura_por_cliente) > 0 else 0
 
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -158,7 +132,7 @@ st.subheader("🎯 Batalha Naval — Positivação por Cliente e Indústria")
 
 matriz = df_filtrado.pivot_table(
     index='codigo_cliente',
-    columns=col_fabricante,
+    columns='Nome_Fabricante',
     aggfunc='size',
     fill_value=0
 )
@@ -209,8 +183,8 @@ st.subheader("👥 Performance por Vendedor")
 
 perf_vendedor = df_filtrado.groupby('nome_vendedor').agg(
     Total_Clientes=('codigo_cliente', 'nunique'),
-    Clientes_Positivados=('codigo_cliente', lambda x: x[df_filtrado.loc[x.index, col_fabricante].notna()].nunique()),
-    Cobertura_Media=(col_fabricante, lambda x: x.nunique() / df_filtrado.loc[x.index, 'codigo_cliente'].nunique() if df_filtrado.loc[x.index, 'codigo_cliente'].nunique() > 0 else 0)
+    Clientes_Positivados=('codigo_cliente', lambda x: x[df_filtrado.loc[x.index, 'Nome_Fabricante'].notna()].nunique()),
+    Cobertura_Media=('Nome_Fabricante', lambda x: x.nunique() / df_filtrado.loc[x.index, 'codigo_cliente'].nunique() if df_filtrado.loc[x.index, 'codigo_cliente'].nunique() > 0 else 0)
 ).reset_index()
 
 perf_vendedor['%_Positivação'] = (perf_vendedor['Clientes_Positivados'] / perf_vendedor['Total_Clientes'] * 100).round(1)
@@ -261,9 +235,9 @@ if cliente_selecionado_label:
 
     if not df_cliente.empty:
         nome = df_cliente['nome_cliente'].iloc[0]
-        coligacao = df_cliente[col_colig].iloc[0] if col_colig in df_cliente.columns else "N/A"
+        coligacao = df_cliente['Cliente_Coligacao'].iloc[0]
         vendedor = df_cliente['nome_vendedor'].iloc[0]
-        coordenador = df_cliente[col_coord].iloc[0] if col_coord in df_cliente.columns else "N/A"
+        coordenador = df_cliente['Nome_Coordenador'].iloc[0]
 
         st.write(f"**Código:** {codigo_selecionado}")
         st.write(f"**Nome:** {nome}")
@@ -271,7 +245,7 @@ if cliente_selecionado_label:
         st.write(f"**Vendedor:** {vendedor}")
         st.write(f"**Coordenador:** {coordenador}")
 
-        industrias_cliente = df_cliente[col_fabricante].dropna().unique()
+        industrias_cliente = df_cliente['Nome_Fabricante'].dropna().unique()
         
         st.write("**Status por Indústria:**")
         cols = st.columns(5)
