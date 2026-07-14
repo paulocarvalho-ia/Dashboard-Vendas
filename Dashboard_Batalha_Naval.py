@@ -58,6 +58,7 @@ def load_data():
 
     return df_base, df_bi, df_merged
 
+# Botão de atualização
 if st.sidebar.button("🔄 Atualizar Dados Agora"):
     st.cache_data.clear()
     st.rerun()
@@ -71,21 +72,51 @@ INDUSTRIAS = sorted(df_bi['Nome_Fabricante'].dropna().unique())
 INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 
 # ============================================================
-# FILTROS ENCADEADOS
+# FILTROS
 # ============================================================
 st.sidebar.header("🎯 Filtros")
 
-lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
-coordenador_selecionado = st.sidebar.selectbox("Coordenador", lista_coordenadores)
+# Botão limpar filtros
+if st.sidebar.button("🧹 Limpar Todos os Filtros"):
+    st.session_state['coordenador'] = "Todos"
+    st.session_state['vendedor'] = "Todos"
+    st.session_state['coligacao'] = "Todas"
+    st.session_state['ano'] = "Todos"
+    st.session_state['mes'] = "Todos"
+    st.session_state['industria_filtro'] = "Todas"
+    st.session_state['modo_gap'] = False
+    st.rerun()
 
+# Inicializar session state
+for key, default in [('coordenador', 'Todos'), ('vendedor', 'Todos'), 
+                      ('coligacao', 'Todas'), ('ano', 'Todos'), 
+                      ('mes', 'Todos'), ('industria_filtro', 'Todas'),
+                      ('modo_gap', False)]:
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+# Coordenador
+lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
+coordenador_selecionado = st.sidebar.selectbox(
+    "Coordenador", lista_coordenadores,
+    index=lista_coordenadores.index(st.session_state['coordenador']) if st.session_state['coordenador'] in lista_coordenadores else 0
+)
+st.session_state['coordenador'] = coordenador_selecionado
+
+# Vendedor
 if coordenador_selecionado != "Todos":
     vendedores_filtrados = df_bi[df_bi['Nome_Coordenador'] == coordenador_selecionado]['nome_vendedor'].dropna().unique()
 else:
     vendedores_filtrados = df_bi['nome_vendedor'].dropna().unique()
 
 lista_vendedores = ["Todos"] + sorted(vendedores_filtrados.tolist())
-vendedor_selecionado = st.sidebar.selectbox("Vendedor", lista_vendedores)
+vendedor_selecionado = st.sidebar.selectbox(
+    "Vendedor", lista_vendedores,
+    index=lista_vendedores.index(st.session_state['vendedor']) if st.session_state['vendedor'] in lista_vendedores else 0
+)
+st.session_state['vendedor'] = vendedor_selecionado
 
+# Coligação
 if vendedor_selecionado != "Todos":
     clientes_do_vendedor = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].unique()
     coligacoes_filtradas = df_base[df_base['codigo_cliente'].isin(clientes_do_vendedor)]['Cliente_Coligacao'].dropna().unique()
@@ -97,10 +128,52 @@ else:
     coligacoes_filtradas = df_base['Cliente_Coligacao'].dropna().unique()
 
 lista_coligacoes = ["Todas"] + sorted(coligacoes_filtradas.tolist())
-coligacao_selecionada = st.sidebar.selectbox("Coligação", lista_coligacoes)
+coligacao_selecionada = st.sidebar.selectbox(
+    "Coligação", lista_coligacoes,
+    index=lista_coligacoes.index(st.session_state['coligacao']) if st.session_state['coligacao'] in lista_coligacoes else 0
+)
+st.session_state['coligacao'] = coligacao_selecionada
 
+# Ano
 anos_disponiveis = sorted(df_merged['Ano'].dropna().unique())
-ano_selecionado = st.sidebar.selectbox("Ano", ["Todos"] + [int(a) for a in anos_disponiveis])
+lista_anos = ["Todos"] + [int(a) for a in anos_disponiveis]
+ano_selecionado = st.sidebar.selectbox(
+    "Ano", lista_anos,
+    index=lista_anos.index(st.session_state['ano']) if st.session_state['ano'] in lista_anos else 0
+)
+st.session_state['ano'] = ano_selecionado
+
+# Mês
+if ano_selecionado != "Todos":
+    meses_disponiveis = sorted(df_merged[df_merged['Ano'] == int(ano_selecionado)]['Mês'].dropna().unique())
+else:
+    meses_disponiveis = sorted(df_merged['Mês'].dropna().unique())
+
+meses_nomes = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+}
+lista_meses = ["Todos"] + [f"{int(m):02d} - {meses_nomes.get(int(m), '')}" for m in meses_disponiveis]
+mes_selecionado = st.sidebar.selectbox(
+    "Mês", lista_meses,
+    index=lista_meses.index(st.session_state['mes']) if st.session_state['mes'] in lista_meses else 0
+)
+st.session_state['mes'] = mes_selecionado
+
+# Filtro de Indústria
+st.sidebar.divider()
+st.sidebar.header("🏭 Filtro por Indústria")
+lista_industrias_filtro = ["Todas"] + INDUSTRIAS
+industria_filtro = st.sidebar.selectbox(
+    "Selecione a Indústria", lista_industrias_filtro,
+    index=lista_industrias_filtro.index(st.session_state['industria_filtro']) if st.session_state['industria_filtro'] in lista_industrias_filtro else 0
+)
+st.session_state['industria_filtro'] = industria_filtro
+
+# Modo Gap (mostrar não positivadas)
+modo_gap = st.sidebar.checkbox("🔍 Mostrar apenas NÃO positivadas (GAP)", value=st.session_state['modo_gap'])
+st.session_state['modo_gap'] = modo_gap
 
 # ============================================================
 # APLICAR FILTROS
@@ -115,9 +188,14 @@ if coligacao_selecionada != "Todas":
     df_filtrado = df_filtrado[df_filtrado['Cliente_Coligacao'] == coligacao_selecionada]
 if ano_selecionado != "Todos":
     df_filtrado = df_filtrado[df_filtrado['Ano'] == int(ano_selecionado)]
+if mes_selecionado != "Todos":
+    mes_num = int(mes_selecionado.split(' - ')[0])
+    df_filtrado = df_filtrado[df_filtrado['Mês'] == mes_num]
+if industria_filtro != "Todas":
+    df_filtrado = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]
 
 # ============================================================
-# MÉTRICAS
+# MÉTRICAS (CARDS)
 # ============================================================
 if vendedor_selecionado != "Todos":
     total_clientes_base = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].nunique()
@@ -146,11 +224,103 @@ col5.metric("🏭 Indústrias", len(INDUSTRIAS))
 st.divider()
 
 # ============================================================
-# BATALHA NAVAL - SUBSTITUÍDA POR BOTÃO PDF
+# VISÃO MENSAL (SUGESTÃO 3)
+# ============================================================
+st.subheader("📅 Evolução Mensal")
+
+# Preparar dados mensais
+df_mensal = df_merged.copy()
+if vendedor_selecionado != "Todos":
+    df_mensal = df_mensal[df_mensal['nome_vendedor'] == vendedor_selecionado]
+if coordenador_selecionado != "Todos":
+    df_mensal = df_mensal[df_mensal['Nome_Coordenador'] == coordenador_selecionado]
+if coligacao_selecionada != "Todas":
+    df_mensal = df_mensal[df_mensal['Cliente_Coligacao'] == coligacao_selecionada]
+
+# Agrupar por mês
+evolucao = df_mensal.groupby('Mês_Ano').agg(
+    Clientes_Positivados=('codigo_cliente', lambda x: x[df_mensal.loc[x.index, 'Nome_Fabricante'].notna()].nunique()),
+    Cobertura_Media=('Nome_Fabricante', lambda x: x.nunique() / df_mensal.loc[x.index, 'codigo_cliente'].nunique() if df_mensal.loc[x.index, 'codigo_cliente'].nunique() > 0 else 0)
+).reset_index()
+
+# Adicionar % com base fixa
+if vendedor_selecionado != "Todos":
+    base_fixa = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].nunique()
+else:
+    base_fixa = df_base['codigo_cliente'].nunique()
+
+evolucao['%_Positivação'] = (evolucao['Clientes_Positivados'] / base_fixa * 100).round(1)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    fig_evo = px.bar(
+        evolucao, x='Mês_Ano', y='%_Positivação',
+        title='% de Positivação por Mês',
+        text=evolucao['%_Positivação'].apply(lambda x: f'{x:.1f}%'),
+        color='%_Positivação', color_continuous_scale='Greens'
+    )
+    fig_evo.update_traces(textposition='outside')
+    fig_evo.update_layout(xaxis_title="", yaxis_title="% Positivação", yaxis_range=[0, 105])
+    st.plotly_chart(fig_evo, use_container_width=True)
+
+with col2:
+    fig_evo2 = px.line(
+        evolucao, x='Mês_Ano', y='Cobertura_Media',
+        title='Cobertura Média por Mês',
+        markers=True,
+        text=evolucao['Cobertura_Media'].apply(lambda x: f'{x:.1f}')
+    )
+    fig_evo2.update_traces(textposition='top center')
+    fig_evo2.update_layout(xaxis_title="", yaxis_title="Cobertura Média")
+    st.plotly_chart(fig_evo2, use_container_width=True)
+
+st.dataframe(evolucao, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ============================================================
+# GAPS DE INDÚSTRIA (SUGESTÃO 4)
+# ============================================================
+if industria_filtro != "Todas" or modo_gap:
+    st.subheader("🔍 Análise de GAPS - Indústrias Não Positivadas")
+    
+    # Clientes que NÃO compraram a indústria selecionada
+    if industria_filtro != "Todas":
+        clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]['codigo_cliente'].unique()
+    else:
+        clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].unique()
+    
+    # Todos os clientes da base filtrada
+    df_base_filtrada_gap = df_base.copy()
+    if vendedor_selecionado != "Todos":
+        df_base_filtrada_gap = df_base_filtrada_gap[df_base_filtrada_gap['nome_vendedor'] == vendedor_selecionado]
+    if coligacao_selecionada != "Todas":
+        df_base_filtrada_gap = df_base_filtrada_gap[df_base_filtrada_gap['Cliente_Coligacao'] == coligacao_selecionada]
+    
+    todos_clientes = df_base_filtrada_gap['codigo_cliente'].unique()
+    
+    if modo_gap or industria_filtro != "Todas":
+        # Clientes em GAP
+        clientes_gap = [c for c in todos_clientes if c not in clientes_com_industria]
+        
+        if industria_filtro != "Todas":
+            st.warning(f"🚨 Clientes que **NÃO** compraram **{industria_filtro}**: {len(clientes_gap)} de {len(todos_clientes)}")
+        else:
+            st.warning(f"🚨 Clientes que **NÃO** compraram **nenhuma indústria**: {len(clientes_gap)} de {len(todos_clientes)}")
+        
+        if len(clientes_gap) > 0:
+            df_gap = df_base_filtrada_gap[df_base_filtrada_gap['codigo_cliente'].isin(clientes_gap)][['codigo_cliente', 'nome_cliente', 'Cliente_Coligacao', 'nome_vendedor']]
+            df_gap.columns = ['Código', 'Nome', 'Coligação', 'Vendedor']
+            st.dataframe(df_gap, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ============================================================
+# RELATÓRIO CSV
 # ============================================================
 st.subheader("📋 Relatório de Positivação")
 
-# Criar matriz para o relatório
 matriz = df_filtrado.pivot_table(
     index='codigo_cliente',
     columns='Nome_Fabricante',
@@ -161,18 +331,14 @@ matriz = df_filtrado.pivot_table(
 mapa_nomes = df_filtrado[['codigo_cliente', 'nome_cliente']].drop_duplicates('codigo_cliente')
 mapa_nomes_dict = dict(zip(mapa_nomes['codigo_cliente'], mapa_nomes['nome_cliente']))
 
-matriz['Nome_Cliente'] = matriz.index.map(lambda x: mapa_nomes_dict.get(x, 'N/A'))
-matriz['Total_Indústrias'] = (matriz.drop(columns=['Nome_Cliente']) > 0).sum(axis=1)
-matriz_bin = (matriz.drop(columns=['Nome_Cliente', 'Total_Indústrias']) > 0).astype(int)
-matriz_bin['Nome_Cliente'] = matriz['Nome_Cliente']
-matriz_bin['Total_Indústrias'] = matriz['Total_Indústrias']
+matriz_bin = (matriz > 0).astype(int)
+matriz_bin['Nome_Cliente'] = matriz.index.map(lambda x: mapa_nomes_dict.get(x, 'N/A'))
+matriz_bin['Total_Indústrias'] = matriz_bin.drop(columns=['Nome_Cliente']).sum(axis=1)
 matriz_bin = matriz_bin.reset_index()
 matriz_bin = matriz_bin.rename(columns={'codigo_cliente': 'Código'})
-matriz_bin = matriz_bin[['Código', 'Nome_Cliente'] + [c for c in matriz_bin.columns if c not in ['Código', 'Nome_Cliente', 'Total_Indústrias']] + ['Total_Indústrias']]
+colunas_ordem = ['Código', 'Nome_Cliente'] + [c for c in matriz_bin.columns if c not in ['Código', 'Nome_Cliente', 'Total_Indústrias']] + ['Total_Indústrias']
+matriz_bin = matriz_bin[colunas_ordem]
 
-st.metric("📊 Clientes na Matriz", len(matriz_bin))
-
-# Botão de download
 csv = matriz_bin.to_csv(index=False).encode('utf-8')
 st.download_button(
     label="📥 Baixar Relatório (CSV)",
@@ -180,8 +346,6 @@ st.download_button(
     file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.csv',
     mime='text/csv'
 )
-
-st.caption("O relatório contém: Código, Nome, Indústrias (1=Positivado, 0=Não) e Total")
 
 st.divider()
 
@@ -248,7 +412,7 @@ st.dataframe(perf_vendedor, use_container_width=True, hide_index=True)
 st.divider()
 
 # ============================================================
-# FICHA DO CLIENTE - MATRIZ MENSAL
+# FICHA DO CLIENTE
 # ============================================================
 st.subheader("🔍 Ficha do Cliente - Performance Mensal")
 
@@ -269,7 +433,6 @@ if len(lista_clientes) > 0:
         try:
             codigo_selecionado = cliente_selecionado_label.split(' - ')[0].strip()
             
-            # Filtrar dados do cliente
             df_filtrado_temp = df_filtrado.copy()
             df_filtrado_temp['codigo_str'] = df_filtrado_temp['codigo_cliente'].astype(str).str.strip()
             df_cliente = df_filtrado_temp[df_filtrado_temp['codigo_str'] == codigo_selecionado]
@@ -286,22 +449,17 @@ if len(lista_clientes) > 0:
                 st.write(f"**Vendedor:** {vendedor}")
                 st.write(f"**Coordenador:** {coordenador}")
 
-                # Matriz simples: Indústrias × Meses
                 st.write("**Positivação por Indústria e Mês:**")
                 
-                # Pegar meses disponíveis para este cliente
                 meses_disponiveis = sorted(df_cliente['Mês_Ano'].dropna().unique())
                 
                 if len(meses_disponiveis) > 0:
-                    # Criar tabela manualmente
                     tabela_dados = []
                     for industria in INDUSTRIAS:
                         linha = {'Indústria': industria}
                         for mes in meses_disponiveis:
-                            # Verificar se houve venda desta indústria neste mês
                             tem_venda = len(df_cliente[(df_cliente['Nome_Fabricante'] == industria) & (df_cliente['Mês_Ano'] == mes)]) > 0
                             linha[mes] = '✅' if tem_venda else '❌'
-                        # Total de meses positivados
                         linha['Total'] = sum(1 for m in meses_disponiveis if linha[m] == '✅')
                         tabela_dados.append(linha)
                     
@@ -315,7 +473,7 @@ if len(lista_clientes) > 0:
             else:
                 st.warning("Cliente não encontrado nos dados filtrados.")
         except Exception as e:
-            st.warning(f"Erro ao carregar dados do cliente. Detalhe: {str(e)}")
+            st.warning(f"Erro ao carregar dados do cliente.")
 else:
     st.warning("Nenhum cliente encontrado com os filtros atuais.")
 
