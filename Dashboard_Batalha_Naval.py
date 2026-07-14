@@ -195,19 +195,29 @@ st.divider()
 # ============================================================
 st.subheader("👥 Performance por Vendedor")
 
-# Lista de vendedores da BASE
-vendedores_base = df_base['nome_vendedor'].dropna().unique()
+# Aplicar filtros na BASE também
+df_base_filtrada = df_base.copy()
+
+if coordenador_selecionado != "Todos":
+    vendedores_do_coord = df_bi[df_bi['Nome_Coordenador'] == coordenador_selecionado]['nome_vendedor'].unique()
+    df_base_filtrada = df_base_filtrada[df_base_filtrada['nome_vendedor'].isin(vendedores_do_coord)]
+
+if coligacao_selecionada != "Todas":
+    df_base_filtrada = df_base_filtrada[df_base_filtrada['Cliente_Coligacao'] == coligacao_selecionada]
+
+# Lista de vendedores da BASE filtrada
+vendedores_base = df_base_filtrada['nome_vendedor'].dropna().unique()
 
 perf_list = []
 for vendedor in vendedores_base:
-    # Total de clientes na carteira (BASE)
-    clientes_carteira = df_base[df_base['nome_vendedor'] == vendedor]['codigo_cliente'].nunique()
+    # Total de clientes na carteira (BASE filtrada)
+    clientes_carteira = df_base_filtrada[df_base_filtrada['nome_vendedor'] == vendedor]['codigo_cliente'].nunique()
     
-    # Clientes que compraram (BI) - filtrando pelo vendedor
-    df_bi_vendedor = df_merged[df_merged['nome_vendedor'] == vendedor]
+    # Clientes que compraram (BI filtrada + vendedor)
+    df_bi_vendedor = df_filtrado[df_filtrado['nome_vendedor'] == vendedor]
     clientes_positivados = df_bi_vendedor[df_bi_vendedor['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
     
-    # Cobertura média (indústrias/cliente)
+    # Cobertura média
     cobertura = df_bi_vendedor.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
     cobertura_media = cobertura.mean() if len(cobertura) > 0 else 0
     
