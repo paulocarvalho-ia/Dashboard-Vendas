@@ -195,20 +195,41 @@ st.divider()
 # ============================================================
 st.subheader("👥 Performance por Vendedor")
 
-perf_vendedor = df_filtrado.groupby('nome_vendedor').agg(
-    Total_Clientes=('codigo_cliente', 'nunique'),
-    Clientes_Positivados=('codigo_cliente', lambda x: x[df_filtrado.loc[x.index, 'Nome_Fabricante'].notna()].nunique()),
-    Cobertura_Media=('Nome_Fabricante', lambda x: x.nunique() / df_filtrado.loc[x.index, 'codigo_cliente'].nunique() if df_filtrado.loc[x.index, 'codigo_cliente'].nunique() > 0 else 0)
-).reset_index()
+# Lista de vendedores da BASE
+vendedores_base = df_base['nome_vendedor'].dropna().unique()
 
-perf_vendedor['%_Positivação'] = (perf_vendedor['Clientes_Positivados'] / perf_vendedor['Total_Clientes'] * 100).round(1)
+perf_list = []
+for vendedor in vendedores_base:
+    # Total de clientes na carteira (BASE)
+    clientes_carteira = df_base[df_base['nome_vendedor'] == vendedor]['codigo_cliente'].nunique()
+    
+    # Clientes que compraram (BI) - filtrando pelo vendedor
+    df_bi_vendedor = df_merged[df_merged['nome_vendedor'] == vendedor]
+    clientes_positivados = df_bi_vendedor[df_bi_vendedor['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
+    
+    # Cobertura média (indústrias/cliente)
+    cobertura = df_bi_vendedor.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
+    cobertura_media = cobertura.mean() if len(cobertura) > 0 else 0
+    
+    # % Positivação
+    pct = (clientes_positivados / clientes_carteira * 100) if clientes_carteira > 0 else 0
+    
+    perf_list.append({
+        'Vendedor': vendedor,
+        'Total_Clientes': clientes_carteira,
+        'Clientes_Positivados': clientes_positivados,
+        '%_Positivação': round(pct, 1),
+        'Cobertura_Media': round(cobertura_media, 1)
+    })
+
+perf_vendedor = pd.DataFrame(perf_list)
 perf_vendedor = perf_vendedor.sort_values('%_Positivação', ascending=False)
 
 col1, col2 = st.columns(2)
 
 with col1:
     fig_bar = px.bar(
-        perf_vendedor, x='nome_vendedor', y='%_Positivação',
+        perf_vendedor, x='Vendedor', y='%_Positivação',
         title='% de Positivação por Vendedor',
         text=perf_vendedor['%_Positivação'].apply(lambda x: f'{x:.1f}%'),
         color='%_Positivação', color_continuous_scale='Greens'
@@ -219,8 +240,8 @@ with col1:
 
 with col2:
     fig_bar2 = px.bar(
-        perf_vendedor, x='nome_vendedor', y='Cobertura_Media',
-        title='Cobertura Média por Vendedor',
+        perf_vendedor, x='Vendedor', y='Cobertura_Media',
+        title='Cobertura Média por Vendedor (Indústrias/Cliente)',
         text=perf_vendedor['Cobertura_Media'].apply(lambda x: f'{x:.1f}'),
         color='Cobertura_Media', color_continuous_scale='Blues'
     )
