@@ -28,8 +28,8 @@ def load_data():
     df_base = pd.read_csv(url_base + "BASE")
     df_bi = pd.read_csv(url_base + "BI")
 
-    # Converter data
-    df_bi['Data'] = pd.to_datetime(df_bi['Data'], errors='coerce')
+    # Converter coluna "Ano e Mês" (formato aaaa-mm) para datetime
+    df_bi['Data'] = pd.to_datetime(df_bi['Ano e Mês'] + '-01', errors='coerce')
     df_bi['Mês'] = df_bi['Data'].dt.month
     df_bi['Ano'] = df_bi['Data'].dt.year
     df_bi['Mês_Ano'] = df_bi['Data'].dt.to_period('M').astype(str)
