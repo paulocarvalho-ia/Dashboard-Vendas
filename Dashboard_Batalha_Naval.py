@@ -280,8 +280,11 @@ if len(lista_clientes) > 0:
                 vendedor = str(df_cliente['nome_vendedor'].iloc[0])
                 coordenador = str(df_cliente['Nome_Coordenador'].iloc[0])
 
-                st.write(f"**Código:** {codigo_selecionado} | **Nome:** {nome}")
-                st.write(f"**Coligação:** {coligacao} | **Vendedor:** {vendedor} | **Coordenador:** {coordenador}")
+                st.write(f"**Código:** {codigo_selecionado}")
+                st.write(f"**Nome:** {nome}")
+                st.write(f"**Coligação:** {coligacao}")
+                st.write(f"**Vendedor:** {vendedor}")
+                st.write(f"**Coordenador:** {coordenador}")
 
                 # Matriz simples: Indústrias × Meses
                 st.write("**Positivação por Indústria e Mês:**")
