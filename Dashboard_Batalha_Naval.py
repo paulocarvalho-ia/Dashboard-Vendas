@@ -72,89 +72,39 @@ INDUSTRIAS = sorted(df_bi['Nome_Fabricante'].dropna().unique())
 INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 
 # ============================================================
-# FUNÇÃO PARA FILTRO COM BUSCA
-# ============================================================
-def filtro_com_busca(label, lista_opcoes, key, default="Todos"):
-    # Inicializar session state
-    if f"{key}_input" not in st.session_state:
-        st.session_state[f"{key}_input"] = default
-    if key not in st.session_state:
-        st.session_state[key] = default
-    
-    # Campo de texto para busca
-    texto_busca = st.sidebar.text_input(
-        f"🔍 {label}",
-        value=st.session_state[f"{key}_input"],
-        key=f"{key}_text"
-    )
-    
-    # Filtrar opções baseado no texto
-    if texto_busca:
-        opcoes_filtradas = [opt for opt in lista_opcoes if texto_busca.lower() in str(opt).lower()]
-    else:
-        opcoes_filtradas = lista_opcoes.copy()
-    
-    if len(opcoes_filtradas) == 0:
-        opcoes_filtradas = ["Nenhum resultado"]
-    
-    # Selecionar da lista filtrada
-    if st.session_state[key] in opcoes_filtradas:
-        index_default = opcoes_filtradas.index(st.session_state[key])
-    else:
-        index_default = 0
-    
-    selecionado = st.sidebar.selectbox(
-        label,
-        opcoes_filtradas,
-        index=index_default,
-        key=f"{key}_select"
-    )
-    
-    # Atualizar session state
-    st.session_state[key] = selecionado
-    st.session_state[f"{key}_input"] = texto_busca
-    
-    return selecionado
-
-# ============================================================
 # FILTROS
 # ============================================================
 st.sidebar.header("🎯 Filtros")
 
-# Botão limpar filtros
-if st.sidebar.button("🧹 Limpar Todos os Filtros"):
-    st.session_state['coordenador'] = "Todos"
-    st.session_state['coordenador_input'] = "Todos"
-    st.session_state['vendedor'] = "Todos"
-    st.session_state['vendedor_input'] = "Todos"
-    st.session_state['coligacao'] = "Todas"
-    st.session_state['coligacao_input'] = "Todas"
-    st.session_state['ano'] = "Todos"
-    st.session_state['ano_input'] = "Todos"
-    st.session_state['mes'] = "Todos"
-    st.session_state['mes_input'] = "Todos"
-    st.session_state['industria_filtro'] = "Todas"
-    st.session_state['industria_filtro_input'] = "Todas"
-    st.session_state['modo_gap'] = False
-    st.rerun()
-
 # Inicializar session state
 defaults = {
-    'coordenador': 'Todos', 'coordenador_input': 'Todos',
-    'vendedor': 'Todos', 'vendedor_input': 'Todos',
-    'coligacao': 'Todas', 'coligacao_input': 'Todas',
-    'ano': 'Todos', 'ano_input': 'Todos',
-    'mes': 'Todos', 'mes_input': 'Todos',
-    'industria_filtro': 'Todas', 'industria_filtro_input': 'Todas',
+    'coordenador': 'Todos',
+    'vendedor': 'Todos',
+    'coligacao': 'Todas',
+    'ano': 'Todos',
+    'mes': 'Todos',
+    'industria_filtro': 'Todas',
     'modo_gap': False
 }
 for key, default in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
+# Botão limpar filtros
+if st.sidebar.button("🧹 Limpar Todos os Filtros"):
+    for key in defaults:
+        st.session_state[key] = defaults[key]
+    st.rerun()
+
 # Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
-coordenador_selecionado = filtro_com_busca("Coordenador", lista_coordenadores, "coordenador")
+coordenador_selecionado = st.sidebar.selectbox(
+    "Coordenador",
+    lista_coordenadores,
+    index=lista_coordenadores.index(st.session_state['coordenador']) if st.session_state['coordenador'] in lista_coordenadores else 0,
+    key='coordenador_select'
+)
+st.session_state['coordenador'] = coordenador_selecionado
 
 # Vendedor
 if coordenador_selecionado != "Todos":
@@ -163,7 +113,13 @@ else:
     vendedores_filtrados = df_bi['nome_vendedor'].dropna().unique()
 
 lista_vendedores = ["Todos"] + sorted(vendedores_filtrados.tolist())
-vendedor_selecionado = filtro_com_busca("Vendedor", lista_vendedores, "vendedor")
+vendedor_selecionado = st.sidebar.selectbox(
+    "Vendedor",
+    lista_vendedores,
+    index=lista_vendedores.index(st.session_state['vendedor']) if st.session_state['vendedor'] in lista_vendedores else 0,
+    key='vendedor_select'
+)
+st.session_state['vendedor'] = vendedor_selecionado
 
 # Coligação
 if vendedor_selecionado != "Todos":
@@ -177,12 +133,24 @@ else:
     coligacoes_filtradas = df_base['Cliente_Coligacao'].dropna().unique()
 
 lista_coligacoes = ["Todas"] + sorted(coligacoes_filtradas.tolist())
-coligacao_selecionada = filtro_com_busca("Coligação", lista_coligacoes, "coligacao")
+coligacao_selecionada = st.sidebar.selectbox(
+    "Coligação",
+    lista_coligacoes,
+    index=lista_coligacoes.index(st.session_state['coligacao']) if st.session_state['coligacao'] in lista_coligacoes else 0,
+    key='coligacao_select'
+)
+st.session_state['coligacao'] = coligacao_selecionada
 
 # Ano
 anos_disponiveis = sorted(df_merged['Ano'].dropna().unique())
 lista_anos = ["Todos"] + [str(int(a)) for a in anos_disponiveis]
-ano_selecionado = filtro_com_busca("Ano", lista_anos, "ano")
+ano_selecionado = st.sidebar.selectbox(
+    "Ano",
+    lista_anos,
+    index=lista_anos.index(st.session_state['ano']) if st.session_state['ano'] in lista_anos else 0,
+    key='ano_select'
+)
+st.session_state['ano'] = ano_selecionado
 
 # Mês
 if ano_selecionado != "Todos":
@@ -196,16 +164,28 @@ meses_nomes = {
     9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
 }
 lista_meses = ["Todos"] + [f"{int(m):02d} - {meses_nomes.get(int(m), '')}" for m in meses_disponiveis]
-mes_selecionado = filtro_com_busca("Mês", lista_meses, "mes")
+mes_selecionado = st.sidebar.selectbox(
+    "Mês",
+    lista_meses,
+    index=lista_meses.index(st.session_state['mes']) if st.session_state['mes'] in lista_meses else 0,
+    key='mes_select'
+)
+st.session_state['mes'] = mes_selecionado
 
-# Filtro de Indústria
+# Indústria
 st.sidebar.divider()
 st.sidebar.header("🏭 Filtro por Indústria")
 lista_industrias_filtro = ["Todas"] + INDUSTRIAS
-industria_filtro = filtro_com_busca("Indústria", lista_industrias_filtro, "industria_filtro")
+industria_filtro = st.sidebar.selectbox(
+    "Indústria",
+    lista_industrias_filtro,
+    index=lista_industrias_filtro.index(st.session_state['industria_filtro']) if st.session_state['industria_filtro'] in lista_industrias_filtro else 0,
+    key='industria_select'
+)
+st.session_state['industria_filtro'] = industria_filtro
 
 # Modo Gap
-modo_gap = st.sidebar.checkbox("🔍 Mostrar apenas NÃO positivadas (GAP)", value=st.session_state['modo_gap'])
+modo_gap = st.sidebar.checkbox("🔍 Mostrar apenas NÃO positivadas (GAP)", value=st.session_state['modo_gap'], key='modo_gap_check')
 st.session_state['modo_gap'] = modo_gap
 
 # ============================================================
