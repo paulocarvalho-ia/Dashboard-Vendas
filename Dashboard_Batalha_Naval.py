@@ -155,9 +155,12 @@ meses_nomes = {
     9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
 }
 lista_meses = ["Todos"] + [f"{int(m):02d} - {meses_nomes.get(int(m), '')}" for m in meses_disponiveis]
+# Garantir que o valor do session state está na lista
+if st.session_state['mes'] not in lista_meses:
+    st.session_state['mes'] = "Todos"
 mes_selecionado = st.sidebar.selectbox(
     "Mês", lista_meses,
-    index=lista_meses.index(st.session_state['mes']) if st.session_state['mes'] in lista_meses else 0
+    index=lista_meses.index(st.session_state['mes'])
 )
 st.session_state['mes'] = mes_selecionado
 
@@ -165,13 +168,15 @@ st.session_state['mes'] = mes_selecionado
 st.sidebar.divider()
 st.sidebar.header("🏭 Filtro por Indústria")
 lista_industrias_filtro = ["Todas"] + INDUSTRIAS
+if st.session_state['industria_filtro'] not in lista_industrias_filtro:
+    st.session_state['industria_filtro'] = "Todas"
 industria_filtro = st.sidebar.selectbox(
     "Selecione a Indústria", lista_industrias_filtro,
-    index=lista_industrias_filtro.index(st.session_state['industria_filtro']) if st.session_state['industria_filtro'] in lista_industrias_filtro else 0
+    index=lista_industrias_filtro.index(st.session_state['industria_filtro'])
 )
 st.session_state['industria_filtro'] = industria_filtro
 
-# Modo Gap (mostrar não positivadas)
+# Modo Gap
 modo_gap = st.sidebar.checkbox("🔍 Mostrar apenas NÃO positivadas (GAP)", value=st.session_state['modo_gap'])
 st.session_state['modo_gap'] = modo_gap
 
@@ -195,7 +200,7 @@ if industria_filtro != "Todas":
     df_filtrado = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]
 
 # ============================================================
-# MÉTRICAS (CARDS)
+# MÉTRICAS (4 CARDS)
 # ============================================================
 if vendedor_selecionado != "Todos":
     total_clientes_base = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].nunique()
@@ -211,24 +216,24 @@ clientes_positivados_ids = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['
 total_clientes_positivados = len(clientes_positivados_ids)
 pct_positivacao = (total_clientes_positivados / total_clientes_base * 100) if total_clientes_base > 0 else 0
 
+# Cobertura média: média de indústrias distintas por cliente
 cobertura_por_cliente = df_filtrado.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
 cobertura_media = cobertura_por_cliente.mean() if len(cobertura_por_cliente) > 0 else 0
 
-col1, col2, col3, col4, col5 = st.columns(5)
+col1, col2, col3, col4 = st.columns(4)
 col1.metric("📋 Clientes na Carteira", total_clientes_base)
 col2.metric("✅ Clientes Positivados", total_clientes_positivados)
 col3.metric("📈 % Positivação", f"{pct_positivacao:.1f}%")
-col4.metric("📊 Cobertura Média", f"{cobertura_media:.1f} indústrias")
-col5.metric("🏭 Indústrias", len(INDUSTRIAS))
+col4.metric("📊 Cobertura Média", f"{cobertura_media:.1f} ind/cliente")
 
 st.divider()
 
 # ============================================================
-# VISÃO MENSAL (SUGESTÃO 3)
+# VISÃO MENSAL
 # ============================================================
 st.subheader("📅 Evolução Mensal")
 
-# Preparar dados mensais
+# Preparar dados mensais sem filtro de mês (para mostrar todos os meses)
 df_mensal = df_merged.copy()
 if vendedor_selecionado != "Todos":
     df_mensal = df_mensal[df_mensal['nome_vendedor'] == vendedor_selecionado]
@@ -236,62 +241,80 @@ if coordenador_selecionado != "Todos":
     df_mensal = df_mensal[df_mensal['Nome_Coordenador'] == coordenador_selecionado]
 if coligacao_selecionada != "Todas":
     df_mensal = df_mensal[df_mensal['Cliente_Coligacao'] == coligacao_selecionada]
+if ano_selecionado != "Todos":
+    df_mensal = df_mensal[df_mensal['Ano'] == int(ano_selecionado)]
+if industria_filtro != "Todas":
+    df_mensal = df_mensal[df_mensal['Nome_Fabricante'] == industria_filtro]
 
-# Agrupar por mês
-evolucao = df_mensal.groupby('Mês_Ano').agg(
-    Clientes_Positivados=('codigo_cliente', lambda x: x[df_mensal.loc[x.index, 'Nome_Fabricante'].notna()].nunique()),
-    Cobertura_Media=('Nome_Fabricante', lambda x: x.nunique() / df_mensal.loc[x.index, 'codigo_cliente'].nunique() if df_mensal.loc[x.index, 'codigo_cliente'].nunique() > 0 else 0)
-).reset_index()
-
-# Adicionar % com base fixa
+# Base fixa para %
 if vendedor_selecionado != "Todos":
     base_fixa = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].nunique()
+elif coordenador_selecionado != "Todos":
+    vendedores_do_coord = df_bi[df_bi['Nome_Coordenador'] == coordenador_selecionado]['nome_vendedor'].unique()
+    base_fixa = df_base[df_base['nome_vendedor'].isin(vendedores_do_coord)]['codigo_cliente'].nunique()
+elif coligacao_selecionada != "Todas":
+    base_fixa = df_base[df_base['Cliente_Coligacao'] == coligacao_selecionada]['codigo_cliente'].nunique()
 else:
     base_fixa = df_base['codigo_cliente'].nunique()
 
-evolucao['%_Positivação'] = (evolucao['Clientes_Positivados'] / base_fixa * 100).round(1)
+# Agrupar por mês
+evolucao_list = []
+for mes in sorted(df_mensal['Mês_Ano'].dropna().unique()):
+    df_mes = df_mensal[df_mensal['Mês_Ano'] == mes]
+    
+    # Clientes positivados no mês
+    clientes_pos = df_mes[df_mes['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
+    
+    # Cobertura média no mês: para cada cliente, quantas indústrias ele comprou
+    cobertura_mes = df_mes.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
+    cobertura_media_mes = cobertura_mes.mean() if len(cobertura_mes) > 0 else 0
+    
+    evolucao_list.append({
+        'Mês_Ano': mes,
+        'Clientes_Positivados': clientes_pos,
+        '%_Positivação': round((clientes_pos / base_fixa * 100), 1) if base_fixa > 0 else 0,
+        'Cobertura_Media': round(cobertura_media_mes, 2)
+    })
 
-col1, col2 = st.columns(2)
+evolucao = pd.DataFrame(evolucao_list)
 
-with col1:
-    fig_evo = px.bar(
-        evolucao, x='Mês_Ano', y='%_Positivação',
-        title='% de Positivação por Mês',
-        text=evolucao['%_Positivação'].apply(lambda x: f'{x:.1f}%'),
-        color='%_Positivação', color_continuous_scale='Greens'
-    )
-    fig_evo.update_traces(textposition='outside')
-    fig_evo.update_layout(xaxis_title="", yaxis_title="% Positivação", yaxis_range=[0, 105])
-    st.plotly_chart(fig_evo, use_container_width=True)
+if len(evolucao) > 0:
+    col1, col2 = st.columns(2)
 
-with col2:
-    fig_evo2 = px.line(
-        evolucao, x='Mês_Ano', y='Cobertura_Media',
-        title='Cobertura Média por Mês',
-        markers=True,
-        text=evolucao['Cobertura_Media'].apply(lambda x: f'{x:.1f}')
-    )
-    fig_evo2.update_traces(textposition='top center')
-    fig_evo2.update_layout(xaxis_title="", yaxis_title="Cobertura Média")
-    st.plotly_chart(fig_evo2, use_container_width=True)
+    with col1:
+        fig_evo = px.bar(
+            evolucao, x='Mês_Ano', y='%_Positivação',
+            title='% de Positivação por Mês',
+            text=evolucao['%_Positivação'].apply(lambda x: f'{x:.1f}%'),
+            color='%_Positivação', color_continuous_scale='Greens'
+        )
+        fig_evo.update_traces(textposition='outside')
+        fig_evo.update_layout(xaxis_title="", yaxis_title="% Positivação", yaxis_range=[0, 105])
+        st.plotly_chart(fig_evo, use_container_width=True)
 
-st.dataframe(evolucao, use_container_width=True, hide_index=True)
+    with col2:
+        fig_evo2 = px.line(
+            evolucao, x='Mês_Ano', y='Cobertura_Media',
+            title='Cobertura Média por Mês (Indústrias/Cliente)',
+            markers=True,
+            text=evolucao['Cobertura_Media'].apply(lambda x: f'{x:.2f}')
+        )
+        fig_evo2.update_traces(textposition='top center')
+        fig_evo2.update_layout(xaxis_title="", yaxis_title="Cobertura Média")
+        st.plotly_chart(fig_evo2, use_container_width=True)
+
+    st.dataframe(evolucao, use_container_width=True, hide_index=True)
+else:
+    st.warning("Sem dados para a evolução mensal.")
 
 st.divider()
 
 # ============================================================
-# GAPS DE INDÚSTRIA (SUGESTÃO 4)
+# GAPS DE INDÚSTRIA
 # ============================================================
 if industria_filtro != "Todas" or modo_gap:
     st.subheader("🔍 Análise de GAPS - Indústrias Não Positivadas")
     
-    # Clientes que NÃO compraram a indústria selecionada
-    if industria_filtro != "Todas":
-        clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]['codigo_cliente'].unique()
-    else:
-        clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].unique()
-    
-    # Todos os clientes da base filtrada
     df_base_filtrada_gap = df_base.copy()
     if vendedor_selecionado != "Todos":
         df_base_filtrada_gap = df_base_filtrada_gap[df_base_filtrada_gap['nome_vendedor'] == vendedor_selecionado]
@@ -300,19 +323,19 @@ if industria_filtro != "Todas" or modo_gap:
     
     todos_clientes = df_base_filtrada_gap['codigo_cliente'].unique()
     
-    if modo_gap or industria_filtro != "Todas":
-        # Clientes em GAP
+    if industria_filtro != "Todas":
+        clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]['codigo_cliente'].unique()
         clientes_gap = [c for c in todos_clientes if c not in clientes_com_industria]
-        
-        if industria_filtro != "Todas":
-            st.warning(f"🚨 Clientes que **NÃO** compraram **{industria_filtro}**: {len(clientes_gap)} de {len(todos_clientes)}")
-        else:
-            st.warning(f"🚨 Clientes que **NÃO** compraram **nenhuma indústria**: {len(clientes_gap)} de {len(todos_clientes)}")
-        
-        if len(clientes_gap) > 0:
-            df_gap = df_base_filtrada_gap[df_base_filtrada_gap['codigo_cliente'].isin(clientes_gap)][['codigo_cliente', 'nome_cliente', 'Cliente_Coligacao', 'nome_vendedor']]
-            df_gap.columns = ['Código', 'Nome', 'Coligação', 'Vendedor']
-            st.dataframe(df_gap, use_container_width=True, hide_index=True)
+        st.warning(f"🚨 Clientes que **NÃO** compraram **{industria_filtro}**: {len(clientes_gap)} de {len(todos_clientes)}")
+    else:
+        clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].unique()
+        clientes_gap = [c for c in todos_clientes if c not in clientes_com_industria]
+        st.warning(f"🚨 Clientes que **NÃO** compraram **nenhuma indústria**: {len(clientes_gap)} de {len(todos_clientes)}")
+    
+    if len(clientes_gap) > 0:
+        df_gap = df_base_filtrada_gap[df_base_filtrada_gap['codigo_cliente'].isin(clientes_gap)][['codigo_cliente', 'nome_cliente', 'Cliente_Coligacao', 'nome_vendedor']]
+        df_gap.columns = ['Código', 'Nome', 'Coligação', 'Vendedor']
+        st.dataframe(df_gap, use_container_width=True, hide_index=True)
 
 st.divider()
 
