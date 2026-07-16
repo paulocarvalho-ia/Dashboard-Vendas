@@ -93,18 +93,20 @@ st.sidebar.header("🎯 Filtros")
 
 # Botão limpar filtros
 if st.sidebar.button("🧹 Limpar Filtros"):
-    # Lista de chaves para resetar (só as de filtro)
-    chaves_filtro = [
-        'coordenador', 'vendedor', 'coligacao', 'ano', 'mes', 
-        'industria_filtro', 'modo_gap',
-        'coordenador_select', 'vendedor_select', 'coligacao_select',
-        'ano_select', 'mes_select', 'industria_select', 'modo_gap_check'
-    ]
-    for chave in chaves_filtro:
-        if chave in st.session_state:
-            del st.session_state[chave]
+    # Definir valores padrão
+    st.session_state['coordenador'] = 'Todos'
+    st.session_state['vendedor'] = 'Todos'
+    st.session_state['coligacao'] = 'Todas'
+    st.session_state['ano'] = 'Todos'
+    st.session_state['mes'] = 'Todos'
+    st.session_state['industria_filtro'] = 'Todas'
+    st.session_state['modo_gap'] = False
+    # Remover as chaves dos selectboxes para forçar recriação
+    for key in ['coordenador_select', 'vendedor_select', 'coligacao_select',
+                 'ano_select', 'mes_select', 'industria_select', 'modo_gap_check']:
+        if key in st.session_state:
+            del st.session_state[key]
     st.rerun()
-
 # Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
 if 'coordenador' not in st.session_state:
