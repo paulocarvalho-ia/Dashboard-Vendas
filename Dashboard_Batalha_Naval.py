@@ -92,20 +92,9 @@ INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 st.sidebar.header("🎯 Filtros")
 
 # Botão limpar filtros
-if st.sidebar.button("🧹 Limpar Filtros"):
-    # Definir valores padrão
-    st.session_state['coordenador'] = 'Todos'
-    st.session_state['vendedor'] = 'Todos'
-    st.session_state['coligacao'] = 'Todas'
-    st.session_state['ano'] = 'Todos'
-    st.session_state['mes'] = 'Todos'
-    st.session_state['industria_filtro'] = 'Todas'
-    st.session_state['modo_gap'] = False
-    # Remover as chaves dos selectboxes para forçar recriação
-    for key in ['coordenador_select', 'vendedor_select', 'coligacao_select',
-                 'ano_select', 'mes_select', 'industria_select', 'modo_gap_check']:
-        if key in st.session_state:
-            del st.session_state[key]
+if st.sidebar.button("Limpar Filtros"):
+    st.query_params.clear()
+    st.session_state.clear()
     st.rerun()
 
 # Coordenador
