@@ -91,11 +91,25 @@ INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 # ============================================================
 st.sidebar.header("🎯 Filtros")
 
-# Botão limpar filtros
-if st.sidebar.button("Limpar Filtros"):
-    st.query_params.clear()
-    st.session_state.clear()
-    st.rerun()
+# Botão limpar filtros (versão HTML)
+st.sidebar.markdown(
+    """
+    <form action="" method="get">
+        <button type="submit" style="width:100%; padding:8px; border-radius:5px; 
+        border:1px solid #ccc; background-color:#f0f0f0; cursor:pointer; font-size:14px;">
+        🧹 Limpar Filtros
+        </button>
+    </form>
+    """,
+    unsafe_allow_html=True
+)
+
+# Se a página foi carregada sem parâmetros, limpar session state
+if not st.query_params:
+    for key in ['coordenador', 'vendedor', 'coligacao', 'ano', 'mes', 'industria_filtro', 'modo_gap']:
+        if key in st.session_state:
+            st.session_state[key] = 'Todos' if key != 'modo_gap' else False
+            st.session_state[key] = 'Todas' if key == 'coligacao' else st.session_state[key]
 
 # Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
