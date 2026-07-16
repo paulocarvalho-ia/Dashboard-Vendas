@@ -107,6 +107,7 @@ if st.sidebar.button("🧹 Limpar Filtros"):
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
+
 # Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
 if 'coordenador' not in st.session_state:
