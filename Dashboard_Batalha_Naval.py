@@ -92,13 +92,8 @@ INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
 st.sidebar.header("🎯 Filtros")
 
 # Botão limpar filtros
-if st.sidebar.button("🧹 Limpar Todos os Filtros"):
-    # Remover todas as chaves de session state relacionadas a filtros
-    for key in list(st.session_state.keys()):
-        if key in ['coordenador', 'vendedor', 'coligacao', 'ano', 'mes', 'industria_filtro', 'modo_gap',
-                    'coordenador_select', 'vendedor_select', 'coligacao_select', 
-                    'ano_select', 'mes_select', 'industria_select', 'modo_gap_check']:
-            del st.session_state[key]
+if st.sidebar.button("🧹 Limpar Filtros"):
+    st.session_state.clear()
     st.rerun()
 
 # Coordenador
