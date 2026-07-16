@@ -94,7 +94,12 @@ st.sidebar.header("🎯 Filtros")
 # Botão limpar filtros
 if st.sidebar.button("🧹 Limpar Filtros"):
     st.session_state.clear()
-    st.rerun()
+    # Forçar recarregamento da página via JavaScript
+    st.markdown(
+        """<script>window.location.reload();</script>""",
+        unsafe_allow_html=True
+    )
+    st.stop()
 
 # Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
