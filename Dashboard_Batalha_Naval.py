@@ -93,13 +93,17 @@ st.sidebar.header("🎯 Filtros")
 
 # Botão limpar filtros
 if st.sidebar.button("🧹 Limpar Filtros"):
-    st.session_state.clear()
-    # Forçar recarregamento da página via JavaScript
-    st.markdown(
-        """<script>window.location.reload();</script>""",
-        unsafe_allow_html=True
-    )
-    st.stop()
+    # Lista de chaves para resetar (só as de filtro)
+    chaves_filtro = [
+        'coordenador', 'vendedor', 'coligacao', 'ano', 'mes', 
+        'industria_filtro', 'modo_gap',
+        'coordenador_select', 'vendedor_select', 'coligacao_select',
+        'ano_select', 'mes_select', 'industria_select', 'modo_gap_check'
+    ]
+    for chave in chaves_filtro:
+        if chave in st.session_state:
+            del st.session_state[chave]
+    st.rerun()
 
 # Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_bi['Nome_Coordenador'].dropna().unique().tolist())
