@@ -49,7 +49,7 @@ def load_data():
         'nome_cliente': 'nome_cliente',
         'nome_vendedor': 'nome_vendedor_base',
         'Cliente_Coligacao': 'Cliente_Coligacao',
-        'Coordenador_': 'Nome_Coordenador'
+        'Coordenador': 'Nome_Coordenador'
     })
 
     # Padronizar nomes da BI
