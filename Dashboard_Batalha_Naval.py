@@ -420,10 +420,11 @@ if industria_filtro != "Todas" or modo_gap:
 st.divider()
 
 # ============================================================
-# RELATÓRIO CSV
+# RELATÓRIO DE POSITIVAÇÃO (CSV + PDF)
 # ============================================================
 st.subheader("📋 Relatório de Positivação")
 
+# Criar matriz
 matriz = df_filtrado.pivot_table(
     index='codigo_cliente',
     columns='Nome_Fabricante',
@@ -439,19 +440,111 @@ matriz_bin['Nome_Cliente'] = matriz.index.map(lambda x: mapa_nomes_dict.get(x, '
 matriz_bin['Total_Indústrias'] = matriz_bin.drop(columns=['Nome_Cliente']).sum(axis=1)
 matriz_bin = matriz_bin.reset_index()
 matriz_bin = matriz_bin.rename(columns={'codigo_cliente': 'Código'})
-colunas_ordem = ['Código', 'Nome_Cliente'] + [c for c in matriz_bin.columns if c not in ['Código', 'Nome_Cliente', 'Total_Indústrias']] + ['Total_Indústrias']
+
+# Reordenar colunas
+colunas_fabricantes = [c for c in matriz_bin.columns if c not in ['Código', 'Nome_Cliente', 'Total_Indústrias']]
+colunas_ordem = ['Código', 'Nome_Cliente'] + colunas_fabricantes + ['Total_Indústrias']
 matriz_bin = matriz_bin[colunas_ordem]
 
-csv = matriz_bin.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="📥 Baixar Relatório (CSV)",
-    data=csv,
-    file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.csv',
-    mime='text/csv'
-)
+# Métricas
+st.metric("📊 Total de Clientes no Relatório", len(matriz_bin))
 
-st.divider()
+col1, col2, col3 = st.columns(3)
 
+with col1:
+    # Download CSV
+    csv = matriz_bin.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Baixar CSV",
+        data=csv,
+        file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.csv',
+        mime='text/csv',
+        use_container_width=True
+    )
+
+with col2:
+    # Download Excel
+    from io import BytesIO
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        matriz_bin.to_excel(writer, index=False, sheet_name='Positivação')
+    excel_data = output.getvalue()
+    st.download_button(
+        label="📥 Baixar Excel",
+        data=excel_data,
+        file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        use_container_width=True
+    )
+
+with col3:
+    # Download PDF
+    # Criar HTML para PDF
+    html_pdf = f"""
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; }}
+            h1 {{ text-align: center; color: #1a3a4a; font-size: 18px; }}
+            h2 {{ text-align: center; color: #666; font-size: 12px; font-weight: normal; }}
+            table {{ border-collapse: collapse; width: 100%; font-size: 8px; }}
+            th {{ background-color: #1a3a4a; color: white; padding: 6px 4px; text-align: center; }}
+            td {{ padding: 4px; text-align: center; border: 1px solid #ddd; }}
+            tr:nth-child(even) {{ background-color: #f9f9f9; }}
+            .positivo {{ background-color: #0F5220; color: white; }}
+            .negativo {{ background-color: #8B0000; color: white; }}
+            .footer {{ text-align: center; font-size: 10px; color: #999; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <h1>Relatório de Positivação e Cobertura</h1>
+        <h2>Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Cliente</th>
+    """
+    
+    for col in colunas_fabricantes:
+        html_pdf += f"<th>{col}</th>"
+    html_pdf += "<th>Total</th></tr></thead><tbody>"
+    
+    for _, row in matriz_bin.iterrows():
+        html_pdf += "<tr>"
+        html_pdf += f"<td>{row['Código']}</td>"
+        html_pdf += f"<td style='text-align:left;'>{row['Nome_Cliente']}</td>"
+        for col in colunas_fabricantes:
+            valor = row[col]
+            classe = "positivo" if valor == 1 else "negativo"
+            html_pdf += f"<td class='{classe}'>{valor}</td>"
+        html_pdf += f"<td><strong>{row['Total_Indústrias']}</strong></td>"
+        html_pdf += "</tr>"
+    
+    html_pdf += f"""
+            </tbody>
+        </table>
+        <div class="footer">
+            Dashboard de Positivação & Cobertura | Total de clientes: {len(matriz_bin)} | 
+            Média de indústrias por cliente: {matriz_bin['Total_Indústrias'].mean():.1f}
+        </div>
+    </body>
+    </html>
+    """
+    
+    st.download_button(
+        label="📥 Baixar PDF",
+        data=html_pdf.encode('utf-8'),
+        file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.html',
+        mime='text/html',
+        use_container_width=True
+    )
+    st.caption("💡 Abra o arquivo HTML e salve como PDF (Ctrl+P)")
+
+# Pré-visualização da tabela
+with st.expander("👁️ Visualizar tabela"):
+    st.dataframe(matriz_bin, use_container_width=True, hide_index=True)
 # ============================================================
 # PERFORMANCE
 # ============================================================
