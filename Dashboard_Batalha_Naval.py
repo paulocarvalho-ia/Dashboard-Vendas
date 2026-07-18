@@ -41,7 +41,13 @@ def load_data():
     df_base = pd.read_csv(url_base + "BASE")
     df_bi = pd.read_csv(url_base + "BI")
 
+    # Mostrar nomes reais das colunas
+    st.sidebar.write("🔍 BASE:", df_base.columns.tolist())
+    st.sidebar.write("🔍 BI:", df_bi.columns.tolist())
+
     data_dados = datetime.now().strftime('%d/%m/%Y %H:%M')
+
+    return df_base, df_bi, df_base, data_dados
 
     # Padronizar nomes das colunas da BASE
     df_base = df_base.rename(columns={
