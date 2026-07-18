@@ -30,7 +30,7 @@ else:
     data_compilacao = datetime.now().strftime('%d/%m/%Y %H:%M')
 
 # ============================================================
-# CONEXÃO COM GOOGLE SHEETS (NOVO SHEET_ID)
+# CONEXÃO COM GOOGLE SHEETS
 # ============================================================
 SHEET_ID = "100LtVtmS76bT2CJd-EIb-bHTgX3F1BVm8Er5vUa-VYQ"
 
@@ -41,29 +41,23 @@ def load_data():
     df_base = pd.read_csv(url_base + "BASE")
     df_bi = pd.read_csv(url_base + "BI")
 
-    # Mostrar nomes reais das colunas
-    st.sidebar.write("🔍 BASE:", df_base.columns.tolist())
-    st.sidebar.write("🔍 BI:", df_bi.columns.tolist())
-
     data_dados = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-    return df_base, df_bi, df_base, data_dados
-
-    # Padronizar nomes das colunas da BASE
+    # Padronizar nomes da BASE
     df_base = df_base.rename(columns={
         'cd_clien': 'codigo_cliente',
         'nome_cliente': 'nome_cliente',
         'nome_vendedor': 'nome_vendedor_base',
         'Cliente_Coligacao': 'Cliente_Coligacao',
-        'Nome Coordenador': 'Nome_Coordenador'
+        'Coordenador_': 'Nome_Coordenador'
     })
 
-    # Padronizar nomes das colunas da BI (NOVA ESTRUTURA)
+    # Padronizar nomes da BI
     df_bi = df_bi.rename(columns={
         'Código Cliente': 'codigo_cliente',
+        'Nome_Vendedor_Ajustado': 'nome_vendedor_bi',
         'Ano e Mês': 'Ano_e_Mes',
-        'Nome Fabricante': 'Nome_Fabricante',
-        'Nome_Vendedor_Ajustado': 'nome_vendedor_bi'
+        'Nome Fabricante': 'Nome_Fabricante'
     })
 
     # Converter data
@@ -72,7 +66,7 @@ def load_data():
     df_bi['Ano'] = df_bi['Data'].dt.year
     df_bi['Mês_Ano'] = df_bi['Data'].dt.to_period('M').astype(str)
 
-    # Merge: BASE + BI (por código cliente E vendedor)
+    # Merge: BASE + BI por código E vendedor
     df_merged = df_bi.merge(
         df_base[['codigo_cliente', 'nome_cliente', 'nome_vendedor_base', 'Cliente_Coligacao', 'Nome_Coordenador']],
         left_on=['codigo_cliente', 'nome_vendedor_bi'],
@@ -80,20 +74,20 @@ def load_data():
         how='left'
     )
 
-    # Se o merge pela combinação exata não encontrar, tenta só por código
-    df_merged_sem_vendedor = df_bi.merge(
+    # Fallback: merge só por código (caso vendedor não bata)
+    df_fallback = df_bi.merge(
         df_base[['codigo_cliente', 'nome_cliente', 'nome_vendedor_base', 'Cliente_Coligacao', 'Nome_Coordenador']],
         on='codigo_cliente',
         how='left',
-        suffixes=('', '_fallback')
+        suffixes=('', '_fb')
     )
 
-    # Preencher vazios do primeiro merge com o segundo
+    # Preencher vazios do merge principal com o fallback
     for col in ['nome_cliente', 'Cliente_Coligacao', 'Nome_Coordenador']:
-        if col in df_merged.columns and f'{col}_fallback' in df_merged_sem_vendedor.columns:
-            df_merged[col] = df_merged[col].fillna(df_merged_sem_vendedor[f'{col}_fallback'])
+        if col in df_merged.columns and f'{col}_fb' in df_fallback.columns:
+            df_merged[col] = df_merged[col].fillna(df_fallback[f'{col}_fb'])
 
-    # Padronizar nome do vendedor
+    # Nome do vendedor padronizado
     df_merged['nome_vendedor'] = df_merged['nome_vendedor_bi']
 
     return df_base, df_bi, df_merged, data_dados
@@ -116,7 +110,7 @@ TOTAL_INDUSTRIAS = len(INDUSTRIAS)
 # ============================================================
 st.sidebar.header("🎯 Filtros")
 
-# Botão limpar filtros (versão HTML estilizada)
+# Botão limpar filtros
 st.sidebar.markdown(
     """
     <form action="" method="get" style="margin-bottom: 10px;">
@@ -146,7 +140,7 @@ if not st.query_params:
     for key in ['coordenador', 'vendedor', 'coligacao', 'ano', 'mes', 'industria_filtro', 'modo_gap']:
         st.session_state.pop(key, None)
 
-# Coordenador (vem da BASE agora)
+# Coordenador
 lista_coordenadores = ["Todos"] + sorted(df_base['Nome_Coordenador'].dropna().unique().tolist())
 if 'coordenador' not in st.session_state:
     st.session_state['coordenador'] = 'Todos'
@@ -308,16 +302,13 @@ pct_positivacao = (total_clientes_positivados / total_clientes_base * 100) if to
 cobertura_por_cliente = df_filtrado.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
 cobertura_media = cobertura_por_cliente.mean() if len(cobertura_por_cliente) > 0 else 0
 
-# COBERTURA TOTAL: soma de todas as relações cliente × indústria
 cobertura_total = df_filtrado[['codigo_cliente', 'Nome_Fabricante']].dropna().drop_duplicates().shape[0]
 
-# Linha 1: 3 cards
 col1, col2, col3 = st.columns(3)
 col1.metric("📋 Clientes na Carteira", total_clientes_base)
 col2.metric("✅ Clientes Positivados", total_clientes_positivados)
 col3.metric("📈 % Positivação", f"{pct_positivacao:.1f}%")
 
-# Linha 2: 2 cards
 col4, col5 = st.columns(2)
 col4.metric("📊 Cobertura Média", f"{cobertura_media:.1f} ind/cliente")
 col5.metric("🏭 Cobertura Total", f"{cobertura_total} coberturas")
@@ -421,7 +412,7 @@ st.divider()
 # GAPS DE INDÚSTRIA
 # ============================================================
 if industria_filtro != "Todas" or modo_gap:
-    st.subheader("🔍 Análise de GAPS - Indústrias Não Positivadas")
+    st.subheader("🔍 Análise de GAPS")
     
     df_base_filtrada_gap = df_base.copy()
     if vendedor_selecionado != "Todos":
@@ -434,11 +425,11 @@ if industria_filtro != "Todas" or modo_gap:
     if industria_filtro != "Todas":
         clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]['codigo_cliente'].unique()
         clientes_gap = [c for c in todos_clientes if c not in clientes_com_industria]
-        st.warning(f"🚨 Clientes que **NÃO** compraram **{industria_filtro}**: {len(clientes_gap)} de {len(todos_clientes)}")
+        st.warning(f"🚨 Clientes que NÃO compraram {industria_filtro}: {len(clientes_gap)} de {len(todos_clientes)}")
     else:
         clientes_com_industria = df_filtrado[df_filtrado['Nome_Fabricante'].notna()]['codigo_cliente'].unique()
         clientes_gap = [c for c in todos_clientes if c not in clientes_com_industria]
-        st.warning(f"🚨 Clientes que **NÃO** compraram **nenhuma indústria**: {len(clientes_gap)} de {len(todos_clientes)}")
+        st.warning(f"🚨 Clientes que NÃO compraram nenhuma indústria: {len(clientes_gap)} de {len(todos_clientes)}")
     
     if len(clientes_gap) > 0:
         df_gap = df_base_filtrada_gap[df_base_filtrada_gap['codigo_cliente'].isin(clientes_gap)][['codigo_cliente', 'nome_cliente', 'Cliente_Coligacao', 'nome_vendedor_base']]
@@ -448,7 +439,7 @@ if industria_filtro != "Todas" or modo_gap:
 st.divider()
 
 # ============================================================
-# RELATÓRIO (CSV + EXCEL + HTML)
+# RELATÓRIO
 # ============================================================
 st.subheader("📋 Relatório de Positivação")
 
@@ -478,88 +469,16 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     csv = matriz_bin.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Baixar CSV",
-        data=csv,
-        file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.csv',
-        mime='text/csv',
-        use_container_width=True
-    )
+    st.download_button("📥 Baixar CSV", data=csv, file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.csv', mime='text/csv', use_container_width=True)
 
 with col2:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         matriz_bin.to_excel(writer, index=False, sheet_name='Positivação')
-    excel_data = output.getvalue()
-    st.download_button(
-        label="📥 Baixar Excel",
-        data=excel_data,
-        file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        use_container_width=True
-    )
+    st.download_button("📥 Baixar Excel", data=output.getvalue(), file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
 
 with col3:
-    html_pdf = f"""
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            h1 {{ text-align: center; color: #1a3a4a; font-size: 18px; }}
-            h2 {{ text-align: center; color: #666; font-size: 12px; font-weight: normal; }}
-            table {{ border-collapse: collapse; width: 100%; font-size: 8px; }}
-            th {{ background-color: #1a3a4a; color: white; padding: 6px 4px; text-align: center; }}
-            td {{ padding: 4px; text-align: center; border: 1px solid #ddd; }}
-            tr:nth-child(even) {{ background-color: #f9f9f9; }}
-            .positivo {{ background-color: #0F5220; color: white; }}
-            .negativo {{ background-color: #8B0000; color: white; }}
-            .footer {{ text-align: center; font-size: 10px; color: #999; margin-top: 20px; }}
-        </style>
-    </head>
-    <body>
-        <h1>Relatório de Positivação e Cobertura</h1>
-        <h2>4 Elos Distribuidora Ltda. - Centro de Custo 622 | Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Cliente</th>"""
-    
-    for col in colunas_fabricantes:
-        html_pdf += f"<th>{col}</th>"
-    html_pdf += "<th>Total</th></tr></thead><tbody>"
-    
-    for _, row in matriz_bin.iterrows():
-        html_pdf += "<tr>"
-        html_pdf += f"<td>{row['Código']}</td>"
-        html_pdf += f"<td style='text-align:left;'>{row['Nome_Cliente']}</td>"
-        for col in colunas_fabricantes:
-            valor = row[col]
-            classe = "positivo" if valor == 1 else "negativo"
-            html_pdf += f"<td class='{classe}'>{valor}</td>"
-        html_pdf += f"<td><strong>{row['Total_Indústrias']}</strong></td>"
-        html_pdf += "</tr>"
-    
-    html_pdf += f"""
-            </tbody>
-        </table>
-        <div class="footer">
-            4 Elos Distribuidora Ltda. - Centro de Custo 622 | Total: {len(matriz_bin)} clientes | 
-            Cobertura Total: {matriz_bin['Total_Indústrias'].sum()} coberturas
-        </div>
-    </body>
-    </html>
-    """
-    
-    st.download_button(
-        label="📥 Baixar PDF (HTML)",
-        data=html_pdf.encode('utf-8'),
-        file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.html',
-        mime='text/html',
-        use_container_width=True
-    )
-    st.caption("💡 Abra o arquivo HTML e salve como PDF (Ctrl+P)")
+    st.download_button("📥 Baixar PDF (HTML)", data=html_pdf.encode('utf-8'), file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.html', mime='text/html', use_container_width=True)
 
 with st.expander("👁️ Visualizar tabela"):
     st.dataframe(matriz_bin, use_container_width=True, hide_index=True)
@@ -567,7 +486,7 @@ with st.expander("👁️ Visualizar tabela"):
 st.divider()
 
 # ============================================================
-# PERFORMANCE POR VENDEDOR
+# PERFORMANCE
 # ============================================================
 st.subheader("👥 Performance por Vendedor")
 
@@ -605,23 +524,17 @@ perf_vendedor = perf_vendedor.sort_values('%_Positivação', ascending=False)
 col1, col2 = st.columns(2)
 
 with col1:
-    fig_bar = px.bar(
-        perf_vendedor, x='Vendedor', y='%_Positivação',
-        title='% de Positivação por Vendedor',
-        text=perf_vendedor['%_Positivação'].apply(lambda x: f'{x:.1f}%'),
-        color='%_Positivação', color_continuous_scale='Greens'
-    )
+    fig_bar = px.bar(perf_vendedor, x='Vendedor', y='%_Positivação', title='% de Positivação por Vendedor',
+                     text=perf_vendedor['%_Positivação'].apply(lambda x: f'{x:.1f}%'),
+                     color='%_Positivação', color_continuous_scale='Greens')
     fig_bar.update_traces(textposition='outside')
     fig_bar.update_layout(xaxis_title="", yaxis_title="% Positivação", yaxis_range=[0, 105])
     st.plotly_chart(fig_bar, use_container_width=True)
 
 with col2:
-    fig_bar2 = px.bar(
-        perf_vendedor, x='Vendedor', y='Cobertura_Media',
-        title='Cobertura Média por Vendedor',
-        text=perf_vendedor['Cobertura_Media'].apply(lambda x: f'{x:.1f}'),
-        color='Cobertura_Media', color_continuous_scale='Blues'
-    )
+    fig_bar2 = px.bar(perf_vendedor, x='Vendedor', y='Cobertura_Media', title='Cobertura Média por Vendedor',
+                      text=perf_vendedor['Cobertura_Media'].apply(lambda x: f'{x:.1f}'),
+                      color='Cobertura_Media', color_continuous_scale='Blues')
     fig_bar2.update_traces(textposition='outside')
     fig_bar2.update_layout(xaxis_title="", yaxis_title="Cobertura Média")
     st.plotly_chart(fig_bar2, use_container_width=True)
@@ -633,14 +546,12 @@ st.divider()
 # ============================================================
 # FICHA DO CLIENTE
 # ============================================================
-st.subheader("🔍 Ficha do Cliente - Performance Mensal")
+st.subheader("🔍 Ficha do Cliente")
 
 try:
     df_clientes_unicos = df_filtrado[['codigo_cliente', 'nome_cliente']].drop_duplicates()
     df_clientes_unicos = df_clientes_unicos.dropna(subset=['codigo_cliente', 'nome_cliente'])
-    df_clientes_unicos['codigo_str'] = df_clientes_unicos['codigo_cliente'].astype(str).str.strip()
-    df_clientes_unicos['nome_str'] = df_clientes_unicos['nome_cliente'].astype(str).str.strip()
-    df_clientes_unicos['cliente_label'] = df_clientes_unicos['codigo_str'] + ' - ' + df_clientes_unicos['nome_str']
+    df_clientes_unicos['cliente_label'] = df_clientes_unicos['codigo_cliente'].astype(str) + ' - ' + df_clientes_unicos['nome_cliente'].astype(str)
     lista_clientes = sorted(df_clientes_unicos['cliente_label'].unique().tolist())
 except:
     lista_clientes = []
@@ -651,25 +562,16 @@ if len(lista_clientes) > 0:
     if cliente_selecionado_label:
         try:
             codigo_selecionado = cliente_selecionado_label.split(' - ')[0].strip()
-            
-            df_filtrado_temp = df_filtrado.copy()
-            df_filtrado_temp['codigo_str'] = df_filtrado_temp['codigo_cliente'].astype(str).str.strip()
-            df_cliente = df_filtrado_temp[df_filtrado_temp['codigo_str'] == codigo_selecionado]
+            df_cliente = df_filtrado[df_filtrado['codigo_cliente'].astype(str).str.strip() == codigo_selecionado]
 
-            if not df_cliente.empty and len(df_cliente) > 0:
-                nome = str(df_cliente['nome_cliente'].iloc[0])
-                coligacao = str(df_cliente['Cliente_Coligacao'].iloc[0])
-                vendedor = str(df_cliente['nome_vendedor'].iloc[0])
-                coordenador = str(df_cliente['Nome_Coordenador'].iloc[0])
-
+            if not df_cliente.empty:
                 st.write(f"**Código:** {codigo_selecionado}")
-                st.write(f"**Nome:** {nome}")
-                st.write(f"**Coligação:** {coligacao}")
-                st.write(f"**Vendedor:** {vendedor}")
-                st.write(f"**Coordenador:** {coordenador}")
+                st.write(f"**Nome:** {df_cliente['nome_cliente'].iloc[0]}")
+                st.write(f"**Coligação:** {df_cliente['Cliente_Coligacao'].iloc[0]}")
+                st.write(f"**Vendedor:** {df_cliente['nome_vendedor'].iloc[0]}")
+                st.write(f"**Coordenador:** {df_cliente['Nome_Coordenador'].iloc[0]}")
 
                 st.write("**Positivação por Indústria e Mês:**")
-                
                 meses_disponiveis = sorted(df_cliente['Mês_Ano'].dropna().unique())
                 
                 if len(meses_disponiveis) > 0:
@@ -690,16 +592,16 @@ if len(lista_clientes) > 0:
                     st.metric("Indústrias Positivadas", f"{total_industrias_positivadas} de {TOTAL_INDUSTRIAS}")
                     st.metric("Cobertura Total do Cliente", f"{cobertura_total_cliente} coberturas")
                 else:
-                    st.warning("Nenhum dado mensal disponível para este cliente.")
+                    st.warning("Nenhum dado mensal.")
             else:
-                st.warning("Cliente não encontrado nos dados filtrados.")
-        except Exception as e:
-            st.warning(f"Erro ao carregar dados do cliente.")
+                st.warning("Cliente não encontrado.")
+        except:
+            st.warning("Erro ao carregar dados do cliente.")
 else:
-    st.warning("Nenhum cliente encontrado com os filtros atuais.")
+    st.warning("Nenhum cliente encontrado.")
 
 # ============================================================
-# RODAPÉ COM DATAS
+# RODAPÉ
 # ============================================================
 st.divider()
 col1, col2 = st.columns(2)
