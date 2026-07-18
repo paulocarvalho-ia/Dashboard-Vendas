@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime
 import os
+from io import BytesIO
 
 # ============================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -16,12 +17,11 @@ st.set_page_config(
 )
 
 st.title("📊 Dashboard de Positivação e Cobertura")
-st.caption("Distribuidora — Análise por Indústria Representada")
+st.caption("4 Elos Distribuidora Ltda. - Centro de Custo 622")
 
 # ============================================================
 # DATAS DE CONTROLE
 # ============================================================
-# Data de compilação (última modificação do arquivo)
 arquivo_atual = __file__
 if os.path.exists(arquivo_atual):
     timestamp_compilacao = os.path.getmtime(arquivo_atual)
@@ -41,7 +41,6 @@ def load_data():
     df_base = pd.read_csv(url_base + "BASE")
     df_bi = pd.read_csv(url_base + "BI")
 
-    # Data dos dados: pegar a data atual como referência da última leitura
     data_dados = datetime.now().strftime('%d/%m/%Y %H:%M')
 
     df_base = df_base.rename(columns={
@@ -63,7 +62,6 @@ def load_data():
     df_bi['Mês'] = df_bi['Data'].dt.month
     df_bi['Ano'] = df_bi['Data'].dt.year
     df_bi['Mês_Ano'] = df_bi['Data'].dt.to_period('M').astype(str)
-    df_bi['Mes_Nome'] = df_bi['Data'].dt.strftime('%b/%Y')
 
     df_merged = df_bi.merge(
         df_base[['codigo_cliente', 'Cliente_Coligacao']],
@@ -73,7 +71,6 @@ def load_data():
 
     return df_base, df_bi, df_merged, data_dados
 
-# Botão de atualização
 if st.sidebar.button("🔄 Atualizar Dados Agora"):
     st.cache_data.clear()
     st.rerun()
@@ -85,6 +82,7 @@ df_base, df_bi, df_merged, data_dados = load_data()
 # ============================================================
 INDUSTRIAS = sorted(df_bi['Nome_Fabricante'].dropna().unique())
 INDUSTRIAS = [i for i in INDUSTRIAS if i.strip() != '']
+TOTAL_INDUSTRIAS = len(INDUSTRIAS)
 
 # ============================================================
 # FILTROS
@@ -117,7 +115,6 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# Se a página foi carregada sem parâmetros, limpar session state
 if not st.query_params:
     for key in ['coordenador', 'vendedor', 'coligacao', 'ano', 'mes', 'industria_filtro', 'modo_gap']:
         st.session_state.pop(key, None)
@@ -130,8 +127,7 @@ if st.session_state['coordenador'] not in lista_coordenadores:
     st.session_state['coordenador'] = 'Todos'
 
 coordenador_selecionado = st.sidebar.selectbox(
-    "Coordenador",
-    lista_coordenadores,
+    "Coordenador", lista_coordenadores,
     index=lista_coordenadores.index(st.session_state['coordenador']),
     key='coordenador_select'
 )
@@ -150,8 +146,7 @@ if st.session_state['vendedor'] not in lista_vendedores:
     st.session_state['vendedor'] = 'Todos'
 
 vendedor_selecionado = st.sidebar.selectbox(
-    "Vendedor",
-    lista_vendedores,
+    "Vendedor", lista_vendedores,
     index=lista_vendedores.index(st.session_state['vendedor']),
     key='vendedor_select'
 )
@@ -175,8 +170,7 @@ if st.session_state['coligacao'] not in lista_coligacoes:
     st.session_state['coligacao'] = 'Todas'
 
 coligacao_selecionada = st.sidebar.selectbox(
-    "Coligação",
-    lista_coligacoes,
+    "Coligação", lista_coligacoes,
     index=lista_coligacoes.index(st.session_state['coligacao']),
     key='coligacao_select'
 )
@@ -191,8 +185,7 @@ if st.session_state['ano'] not in lista_anos:
     st.session_state['ano'] = 'Todos'
 
 ano_selecionado = st.sidebar.selectbox(
-    "Ano",
-    lista_anos,
+    "Ano", lista_anos,
     index=lista_anos.index(st.session_state['ano']),
     key='ano_select'
 )
@@ -216,8 +209,7 @@ if st.session_state['mes'] not in lista_meses:
     st.session_state['mes'] = 'Todos'
 
 mes_selecionado = st.sidebar.selectbox(
-    "Mês",
-    lista_meses,
+    "Mês", lista_meses,
     index=lista_meses.index(st.session_state['mes']),
     key='mes_select'
 )
@@ -233,8 +225,7 @@ if st.session_state['industria_filtro'] not in lista_industrias_filtro:
     st.session_state['industria_filtro'] = 'Todas'
 
 industria_filtro = st.sidebar.selectbox(
-    "Indústria",
-    lista_industrias_filtro,
+    "Indústria", lista_industrias_filtro,
     index=lista_industrias_filtro.index(st.session_state['industria_filtro']),
     key='industria_select'
 )
@@ -271,7 +262,7 @@ if industria_filtro != "Todas":
     df_filtrado = df_filtrado[df_filtrado['Nome_Fabricante'] == industria_filtro]
 
 # ============================================================
-# MÉTRICAS (4 CARDS)
+# MÉTRICAS (5 CARDS EM 2 LINHAS)
 # ============================================================
 if vendedor_selecionado != "Todos":
     total_clientes_base = df_base[df_base['nome_vendedor'] == vendedor_selecionado]['codigo_cliente'].nunique()
@@ -290,11 +281,19 @@ pct_positivacao = (total_clientes_positivados / total_clientes_base * 100) if to
 cobertura_por_cliente = df_filtrado.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
 cobertura_media = cobertura_por_cliente.mean() if len(cobertura_por_cliente) > 0 else 0
 
-col1, col2, col3, col4 = st.columns(4)
+# COBERTURA TOTAL CORRIGIDA: soma de todas as relações cliente × indústria
+cobertura_total = df_filtrado[['codigo_cliente', 'Nome_Fabricante']].dropna().drop_duplicates().shape[0]
+
+# Linha 1: 3 cards
+col1, col2, col3 = st.columns(3)
 col1.metric("📋 Clientes na Carteira", total_clientes_base)
 col2.metric("✅ Clientes Positivados", total_clientes_positivados)
 col3.metric("📈 % Positivação", f"{pct_positivacao:.1f}%")
+
+# Linha 2: 2 cards
+col4, col5 = st.columns(2)
 col4.metric("📊 Cobertura Média", f"{cobertura_media:.1f} ind/cliente")
+col5.metric("🏭 Cobertura Total", f"{cobertura_total} coberturas")
 
 st.divider()
 
@@ -332,12 +331,14 @@ for mes in meses_ordenados:
     clientes_pos = df_mes[df_mes['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
     cobertura_mes = df_mes.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
     cobertura_media_mes = cobertura_mes.mean() if len(cobertura_mes) > 0 else 0
+    cobertura_total_mes = df_mes[['codigo_cliente', 'Nome_Fabricante']].dropna().drop_duplicates().shape[0]
     
     evolucao_list.append({
         'Mês_Ano': mes,
         'Clientes_Positivados': clientes_pos,
         '%_Positivação': round((clientes_pos / base_fixa * 100), 1) if base_fixa > 0 else 0,
-        'Cobertura_Media': round(cobertura_media_mes, 2)
+        'Cobertura_Media': round(cobertura_media_mes, 2),
+        'Cobertura_Total': cobertura_total_mes
     })
 
 evolucao = pd.DataFrame(evolucao_list)
@@ -420,11 +421,10 @@ if industria_filtro != "Todas" or modo_gap:
 st.divider()
 
 # ============================================================
-# RELATÓRIO DE POSITIVAÇÃO (CSV + PDF)
+# RELATÓRIO DE POSITIVAÇÃO (CSV + EXCEL + HTML)
 # ============================================================
 st.subheader("📋 Relatório de Positivação")
 
-# Criar matriz
 matriz = df_filtrado.pivot_table(
     index='codigo_cliente',
     columns='Nome_Fabricante',
@@ -441,18 +441,15 @@ matriz_bin['Total_Indústrias'] = matriz_bin.drop(columns=['Nome_Cliente']).sum(
 matriz_bin = matriz_bin.reset_index()
 matriz_bin = matriz_bin.rename(columns={'codigo_cliente': 'Código'})
 
-# Reordenar colunas
 colunas_fabricantes = [c for c in matriz_bin.columns if c not in ['Código', 'Nome_Cliente', 'Total_Indústrias']]
 colunas_ordem = ['Código', 'Nome_Cliente'] + colunas_fabricantes + ['Total_Indústrias']
 matriz_bin = matriz_bin[colunas_ordem]
 
-# Métricas
 st.metric("📊 Total de Clientes no Relatório", len(matriz_bin))
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    # Download CSV
     csv = matriz_bin.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Baixar CSV",
@@ -463,8 +460,6 @@ with col1:
     )
 
 with col2:
-    # Download Excel
-    from io import BytesIO
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         matriz_bin.to_excel(writer, index=False, sheet_name='Positivação')
@@ -478,8 +473,6 @@ with col2:
     )
 
 with col3:
-    # Download PDF
-    # Criar HTML para PDF
     html_pdf = f"""
     <html>
     <head>
@@ -499,13 +492,12 @@ with col3:
     </head>
     <body>
         <h1>Relatório de Positivação e Cobertura</h1>
-        <h2>Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}</h2>
+        <h2>4 Elos Distribuidora Ltda. - Centro de Custo 622 | Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}</h2>
         <table>
             <thead>
                 <tr>
                     <th>Código</th>
-                    <th>Cliente</th>
-    """
+                    <th>Cliente</th>"""
     
     for col in colunas_fabricantes:
         html_pdf += f"<th>{col}</th>"
@@ -526,15 +518,15 @@ with col3:
             </tbody>
         </table>
         <div class="footer">
-            Dashboard de Positivação & Cobertura | Total de clientes: {len(matriz_bin)} | 
-            Média de indústrias por cliente: {matriz_bin['Total_Indústrias'].mean():.1f}
+            4 Elos Distribuidora Ltda. - Centro de Custo 622 | Total de clientes: {len(matriz_bin)} | 
+            Cobertura Total: {matriz_bin['Total_Indústrias'].sum()} coberturas
         </div>
     </body>
     </html>
     """
     
     st.download_button(
-        label="📥 Baixar PDF",
+        label="📥 Baixar PDF (HTML)",
         data=html_pdf.encode('utf-8'),
         file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.html',
         mime='text/html',
@@ -542,11 +534,13 @@ with col3:
     )
     st.caption("💡 Abra o arquivo HTML e salve como PDF (Ctrl+P)")
 
-# Pré-visualização da tabela
 with st.expander("👁️ Visualizar tabela"):
     st.dataframe(matriz_bin, use_container_width=True, hide_index=True)
+
+st.divider()
+
 # ============================================================
-# PERFORMANCE
+# PERFORMANCE POR VENDEDOR (COM COBERTURA TOTAL CORRIGIDA)
 # ============================================================
 st.subheader("👥 Performance por Vendedor")
 
@@ -566,6 +560,10 @@ for vendedor in vendedores_base:
     clientes_positivados = df_bi_vendedor[df_bi_vendedor['Nome_Fabricante'].notna()]['codigo_cliente'].nunique()
     cobertura = df_bi_vendedor.groupby('codigo_cliente')['Nome_Fabricante'].nunique()
     cobertura_media = cobertura.mean() if len(cobertura) > 0 else 0
+    
+    # COBERTURA TOTAL CORRIGIDA: soma de todas as relações cliente × indústria
+    cobertura_total_vendedor = df_bi_vendedor[['codigo_cliente', 'Nome_Fabricante']].dropna().drop_duplicates().shape[0]
+    
     pct = (clientes_positivados / clientes_carteira * 100) if clientes_carteira > 0 else 0
     
     perf_list.append({
@@ -573,7 +571,8 @@ for vendedor in vendedores_base:
         'Total_Clientes': clientes_carteira,
         'Clientes_Positivados': clientes_positivados,
         '%_Positivação': round(pct, 1),
-        'Cobertura_Media': round(cobertura_media, 1)
+        'Cobertura_Media': round(cobertura_media, 1),
+        'Cobertura_Total': cobertura_total_vendedor
     })
 
 perf_vendedor = pd.DataFrame(perf_list)
@@ -603,7 +602,7 @@ with col2:
     fig_bar2.update_layout(xaxis_title="", yaxis_title="Cobertura Média")
     st.plotly_chart(fig_bar2, use_container_width=True)
 
-st.dataframe(perf_vendedor, use_container_width=True, hide_index=True)
+st.dataframe(perf_vendedor[['Vendedor', 'Total_Clientes', 'Clientes_Positivados', '%_Positivação', 'Cobertura_Media', 'Cobertura_Total']], use_container_width=True, hide_index=True)
 
 st.divider()
 
@@ -663,7 +662,9 @@ if len(lista_clientes) > 0:
                     st.dataframe(df_tabela, use_container_width=True, hide_index=True)
                     
                     total_industrias_positivadas = sum(1 for l in tabela_dados if l['Total'] > 0)
-                    st.metric("Indústrias Positivadas", f"{total_industrias_positivadas} de {len(INDUSTRIAS)}")
+                    cobertura_total_cliente = df_cliente[['codigo_cliente', 'Nome_Fabricante']].dropna().drop_duplicates().shape[0]
+                    st.metric("Indústrias Positivadas", f"{total_industrias_positivadas} de {TOTAL_INDUSTRIAS}")
+                    st.metric("Cobertura Total do Cliente", f"{cobertura_total_cliente} coberturas")
                 else:
                     st.warning("Nenhum dado mensal disponível para este cliente.")
             else:
