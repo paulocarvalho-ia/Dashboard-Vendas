@@ -557,7 +557,9 @@ with col3:
     st.caption("💡 Abra o arquivo HTML e salve como PDF (Ctrl+P)")
 
 with st.expander("👁️ Visualizar tabela"):
-    st.dataframe(matriz_bin, use_container_width=True, hide_index=True)st.divider()
+    st.dataframe(matriz_bin, use_container_width=True, hide_index=True)
+    
+    st.divider()
 
 # ============================================================
 # PERFORMANCE
