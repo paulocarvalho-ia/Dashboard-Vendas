@@ -97,8 +97,14 @@ def load_data():
 
     return df_base, df_bi, df_merged, data_dados, fabricante_pasta, vendedor_pasta
 
+# ============================================================
+# BOTÃO ATUALIZAR DADOS AGORA (CORRIGIDO)
+# ============================================================
 if st.sidebar.button("🔄 Atualizar Dados Agora"):
     st.cache_data.clear()
+    # Remove filtros de mês e ano para redefinir com o último disponível
+    st.session_state.pop('mes', None)
+    st.session_state.pop('ano', None)
     st.rerun()
 
 df_base, df_bi, df_merged, data_dados, fabricante_pasta, vendedor_pasta = load_data()
@@ -346,7 +352,7 @@ if clientes_sem_venda_carteira:
 st.divider()
 
 # ============================================================
-# RELATÓRIO BATALHA NAVAL (COM SELETORES DE PERÍODO)
+# RELATÓRIO BATALHA NAVAL (COM SELETORES DE PERÍODO, SEM CSV)
 # ============================================================
 st.subheader("📋 Relatório Batalha Naval")
 
@@ -379,16 +385,20 @@ matriz_bin = matriz_bin[['Código', 'Nome_Cliente'] + colunas_fabricantes + ['To
 
 st.metric("📊 Total de Clientes no Relatório", len(matriz_bin))
 
-col1, col2, col3 = st.columns(3)
+# Botões de download: apenas Excel e PDF
+col1, col2 = st.columns(2)
 with col1:
-    csv = matriz_bin.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Baixar CSV", data=csv, file_name=f'positivacao_{datetime.now().strftime("%Y%m%d")}.csv', mime='text/csv', use_container_width=True)
-with col2:
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         matriz_bin.to_excel(writer, index=False, sheet_name='Batalha Naval')
-    st.download_button("📥 Baixar Excel", data=output.getvalue(), file_name=f'batalha_naval_{datetime.now().strftime("%Y%m%d")}.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
-with col3:
+    st.download_button(
+        "📥 Baixar Excel",
+        data=output.getvalue(),
+        file_name=f'batalha_naval_{datetime.now().strftime("%Y%m%d")}.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        use_container_width=True
+    )
+with col2:
     html_pdf = f"""
     <html><head><meta charset="UTF-8"><style>
         body {{ font-family: Arial, sans-serif; margin: 20px; }}
@@ -417,7 +427,13 @@ with col3:
             html_pdf += f"<td class='{classe}'>{valor}</td>"
         html_pdf += f"<td><strong>{row['Total_Indústrias']}</strong></td></tr>"
     html_pdf += f"</tbody></table><div class='footer'>4 Elos Distribuidora Ltda. - Centro de Custo 622 | Total: {len(matriz_bin)} clientes | Cobertura Total: {matriz_bin['Total_Indústrias'].sum()} coberturas</div></body></html>"
-    st.download_button("📥 Baixar PDF (HTML)", data=html_pdf.encode('utf-8'), file_name=f'batalha_naval_{datetime.now().strftime("%Y%m%d")}.html', mime='text/html', use_container_width=True)
+    st.download_button(
+        "📥 Baixar PDF (HTML)",
+        data=html_pdf.encode('utf-8'),
+        file_name=f'batalha_naval_{datetime.now().strftime("%Y%m%d")}.html',
+        mime='text/html',
+        use_container_width=True
+    )
     st.caption("💡 Abra o arquivo HTML e salve como PDF (Ctrl+P)")
 
 with st.expander("👁️ Visualizar tabela"):
