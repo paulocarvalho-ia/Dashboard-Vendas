@@ -321,6 +321,19 @@ if clientes_sem_venda_ativos:
     df_sem_venda_ativos.columns = ['Código', 'Nome', 'Coligação']
     with st.expander(f"🔴 {len(clientes_sem_venda_ativos)} clientes sem venda no mês (Carteira Ativa)"):
         st.dataframe(df_sem_venda_ativos, use_container_width=True, hide_index=True)
+
+    # Download Excel da lista de clientes sem venda (Carteira Ativa)
+    output_ativa = BytesIO()
+    with pd.ExcelWriter(output_ativa, engine='openpyxl') as writer:
+        df_sem_venda_ativos.to_excel(writer, index=False, sheet_name='Sem Venda Ativa')
+    st.download_button(
+        "📥 Baixar Excel (Sem Venda Ativa)",
+        data=output_ativa.getvalue(),
+        file_name=f'sem_venda_ativa_{vendedor_selecionado if vendedor_selecionado != "Todos" else "geral"}_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        use_container_width=True
+    )
+
 st.divider()
 
 # ============================================================
@@ -349,10 +362,23 @@ if clientes_sem_venda_carteira:
     df_sem_venda_total.columns = ['Código', 'Nome', 'Coligação']
     with st.expander(f"🔴 {len(clientes_sem_venda_carteira)} clientes sem venda (Carteira Total)"):
         st.dataframe(df_sem_venda_total, use_container_width=True, hide_index=True)
+
+    # Download Excel da lista de clientes sem venda (Carteira Total)
+    output_total = BytesIO()
+    with pd.ExcelWriter(output_total, engine='openpyxl') as writer:
+        df_sem_venda_total.to_excel(writer, index=False, sheet_name='Sem Venda Total')
+    st.download_button(
+        "📥 Baixar Excel (Sem Venda Total)",
+        data=output_total.getvalue(),
+        file_name=f'sem_venda_total_{vendedor_selecionado if vendedor_selecionado != "Todos" else "geral"}_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        use_container_width=True
+    )
+
 st.divider()
 
 # ============================================================
-# RELATÓRIO BATALHA NAVAL (COM SELETORES DE PERÍODO, SEM CSV)
+# RELATÓRIO BATALHA NAVAL (SEM CSV, APENAS EXCEL E PDF)
 # ============================================================
 st.subheader("📋 Relatório Batalha Naval")
 
@@ -385,7 +411,6 @@ matriz_bin = matriz_bin[['Código', 'Nome_Cliente'] + colunas_fabricantes + ['To
 
 st.metric("📊 Total de Clientes no Relatório", len(matriz_bin))
 
-# Botões de download: apenas Excel e PDF
 col1, col2 = st.columns(2)
 with col1:
     output = BytesIO()
@@ -493,6 +518,19 @@ if lista_clientes:
                     tabela.append(linha)
                 df_tab = pd.DataFrame(tabela)
                 st.dataframe(df_tab, use_container_width=True, hide_index=True)
+
+                # Download Excel da ficha do cliente
+                output_ficha = BytesIO()
+                with pd.ExcelWriter(output_ficha, engine='openpyxl') as writer:
+                    df_tab.to_excel(writer, index=False, sheet_name='Ficha Cliente')
+                st.download_button(
+                    "📥 Baixar Excel (Ficha do Cliente)",
+                    data=output_ficha.getvalue(),
+                    file_name=f'ficha_cliente_{codigo}_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    use_container_width=True
+                )
+
                 pos_industrias = sum(1 for l in tabela if l['Total'] > 0)
                 st.metric("Indústrias Positivadas", f"{pos_industrias} de {len(tabela)}")
                 st.metric("Cobertura Total do Cliente", df_cliente[['codigo_cliente', 'Nome_Fabricante']].dropna().drop_duplicates().shape[0])
